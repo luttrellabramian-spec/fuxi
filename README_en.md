@@ -159,21 +159,17 @@ fuxi/
 
 - Python >= 3.11
 - Node.js >= 18 (for TypeScript gateway)
-- At least one supported LLM API (DeepSeek / MiniMax)
+- At least one OpenAI API-compatible LLM (OpenAI, DeepSeek, Claude, etc.)
 
 ### 1. Configure API Key
 
 ```bash
-# DeepSeek (recommended, for ReAct tool calling)
-export DEEPSEEK_API_KEY=your_key_here
-export DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
-
-# Or MiniMax (NOTE: does NOT support function calling, chat-only)
-export MINIMAX_API_KEY=your_key_here
-export MINIMAX_BASE_URL=https://api.minimaxi.com/v1
+# OpenAI API-compatible endpoint (recommended, required for ReAct tool calling)
+export OPENAI_API_KEY=your_key_here
+export OPENAI_BASE_URL=https://api.openai.com/v1
 
 # Custom model
-export MODEL=deepseek-v4-pro
+export MODEL=gpt-4o
 ```
 
 ### 2. Start Python gRPC Server
@@ -235,7 +231,7 @@ curl http://localhost:18789/health
 | Hot memory read/write | 100% | Working correctly | ✅ |
 | Warm/Cold memory I/O | Usable | Code OK, env limitation* | ⚠️ |
 | End-to-end conversation | Usable | ReAct + tools working | ✅ |
-| LLM reasoning output | Normal | DeepSeek V4 working | ✅ |
+| LLM reasoning output | Normal | OpenAI-compatible model working | ✅ |
 
 > \* Warm/Cold memory DB files are under filesystem read-only restriction in the project directory. See "Known Issues" below.
 
@@ -255,10 +251,10 @@ curl http://localhost:18789/health
   - Or modify `db_path` in `config/default.yaml`
 - **Code status**: Implementation is correct; this is an environment issue only
 
-#### MiniMax Model Does NOT Support Function Calling
-- **Symptom**: MiniMax-M2.7 and other MiniMax models **do NOT support function calling / tool use**
-- **Impact**: Cannot use ReAct tool calling; chat-only mode
-- **Recommendation**: Use DeepSeek V4 / OpenAI or other function-calling-capable models in production
+#### Some Models Do NOT Support Function Calling
+- **Symptom**: Not all LLMs support function calling / tool use
+- **Impact**: Unsupported models can only do chat mode; no ReAct tool calling
+- **Recommendation**: Use OpenAI GPT-4, DeepSeek V3, Claude 3.5 or other function-calling-capable models
 
 ### 6.2 Functional Limitations
 
@@ -331,12 +327,9 @@ curl http://localhost:18789/health
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DEEPSEEK_API_KEY` | DeepSeek API key | - |
-| `DEEPSEEK_BASE_URL` | DeepSeek API endpoint | `https://api.deepseek.com/v1` |
-| `DEEPSEEK_MODEL` | DeepSeek model name | `deepseek-v4-pro` |
-| `MINIMAX_API_KEY` | MiniMax API key | - |
-| `MINIMAX_BASE_URL` | MiniMax API endpoint | `https://api.minimaxi.com/v1` |
-| `MODEL` | Current model in use | `deepseek-v4-pro` |
+| `OPENAI_API_KEY` | OpenAI API-compatible key | - |
+| `OPENAI_BASE_URL` | API endpoint | `https://api.openai.com/v1` |
+| `MODEL` | Current model in use | `gpt-4o` |
 | `GRPC_HOST` | gRPC server address | `localhost` |
 | `GRPC_PORT` | gRPC port | `50051` |
 | `HTTP_PORT` | HTTP gateway port | `18789` |

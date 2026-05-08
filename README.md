@@ -65,7 +65,7 @@
 │     Hermes Engine 简化版                            │
 │     - ReAct 主循环（10步）                          │
 │     - 工具调度（自注册 + gRPC 暴露）               │
-│     - LLM 调用（DeepSeek 官方 API）                │
+│     - LLM 调用（OpenAI 兼容 API）                  │
 └────────────────────────┬────────────────────────────┘
                          │
           ┌──────────────┼──────────────┐
@@ -127,7 +127,7 @@ fuxi/
 │   │   │   ├── warm_memory.py      # SQLite FTS5
 │   │   │   └── cold_memory.py      # sqlite-vec
 │   │   ├── llm/
-│   │   │   ├── client.py           # DeepSeek API 调用
+│   │   │   ├── client.py           # OpenAI 兼容 API 调用
 │   │   │   └── prompts.py          # 提示词模板
 │   │   └── grpc_server.py          # gRPC Server
 │   ├── requirements.txt
@@ -159,21 +159,17 @@ fuxi/
 
 - Python >= 3.11
 - Node.js >= 18 (for TypeScript gateway)
-- 至少一个支持的 LLM API (DeepSeek / MiniMax)
+- 至少一个支持 OpenAI API 格式的 LLM（OpenAI、DeepSeek、Claude 等）
 
 ### 1. 配置 API Key
 
 ```bash
-# DeepSeek（推荐，用于 ReAct 工具调用）
-export DEEPSEEK_API_KEY=your_key_here
-export DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
-
-# 或 MiniMax（注意：不支持 function calling，只能对话模式）
-export MINIMAX_API_KEY=your_key_here
-export MINIMAX_BASE_URL=https://api.minimaxi.com/v1
+# OpenAI 兼容格式的 API（推荐，用于 ReAct 工具调用）
+export OPENAI_API_KEY=your_key_here
+export OPENAI_BASE_URL=https://api.openai.com/v1
 
 # 自定义模型
-export MODEL=deepseek-v4-pro
+export MODEL=gpt-4o
 ```
 
 ### 2. 启动 Python gRPC 服务
@@ -235,7 +231,7 @@ curl http://localhost:18789/health
 | 热记忆读写正确 | 100% | 读写正常 | ✅ |
 | 温/冷记忆读写 | 可用 | 代码正常，环境限制* | ⚠️ |
 | 端到端对话 | 可用 | ReAct + 工具调用正常 | ✅ |
-| LLM reasoning 输出 | 正常 | DeepSeek V4 推理正常 | ✅ |
+| LLM reasoning 输出 | 正常 | OpenAI 兼容模型推理正常 | ✅ |
 
 > \* 温/冷记忆数据库文件在项目目录下存在环境只读限制，详见"已知问题"章节。
 
@@ -255,10 +251,10 @@ curl http://localhost:18789/health
   - 或在 `config/default.yaml` 中修改 `db_path`
 - **代码状态**：实现本身正常，仅受环境限制
 
-#### MiniMax 模型不支持 function calling
-- **现象**：MiniMax-M2.7 等 MiniMax 系列模型**不支持 function calling / tool use**
-- **影响**：无法使用 ReAct 工具调用，只能进行纯对话
-- **建议**：生产环境使用 DeepSeek V4 / OpenAI 等支持 function calling 的模型
+#### 部分模型不支持 function calling
+- **现象**：并非所有 LLM 都支持 function calling / tool use
+- **影响**：不支持的模型无法使用 ReAct 工具调用，只能进行纯对话
+- **建议**：使用 OpenAI GPT-4、DeepSeek V3、Claude 3.5 等明确支持 function calling 的模型
 
 ### 6.2 功能限制
 
@@ -331,12 +327,9 @@ curl http://localhost:18789/health
 
 | 环境变量 | 说明 | 默认值 |
 |----------|------|--------|
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | - |
-| `DEEPSEEK_BASE_URL` | DeepSeek API 端点 | `https://api.deepseek.com/v1` |
-| `DEEPSEEK_MODEL` | DeepSeek 模型名 | `deepseek-v4-pro` |
-| `MINIMAX_API_KEY` | MiniMax API 密钥 | - |
-| `MINIMAX_BASE_URL` | MiniMax API 端点 | `https://api.minimaxi.com/v1` |
-| `MODEL` | 当前使用模型 | `deepseek-v4-pro` |
+| `OPENAI_API_KEY` | OpenAI 兼容 API 密钥 | - |
+| `OPENAI_BASE_URL` | API 端点 | `https://api.openai.com/v1` |
+| `MODEL` | 当前使用模型 | `gpt-4o` |
 | `GRPC_HOST` | gRPC 服务地址 | `localhost` |
 | `GRPC_PORT` | gRPC 端口 | `50051` |
 | `HTTP_PORT` | HTTP 网关端口 | `18789` |
