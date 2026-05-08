@@ -168,7 +168,7 @@ fuxi/
 export OPENAI_API_KEY=your_key_here
 export OPENAI_BASE_URL=https://api.openai.com/v1
 
-# Custom model
+# Custom model (required)
 export MODEL=gpt-4o
 ```
 
@@ -329,7 +329,7 @@ curl http://localhost:18789/health
 |----------|-------------|---------|
 | `OPENAI_API_KEY` | OpenAI API-compatible key | - |
 | `OPENAI_BASE_URL` | API endpoint | `https://api.openai.com/v1` |
-| `MODEL` | Current model in use | `gpt-4o` |
+| `MODEL` | Current model in use | **Required, no default** |
 | `GRPC_HOST` | gRPC server address | `localhost` |
 | `GRPC_PORT` | gRPC port | `50051` |
 | `HTTP_PORT` | HTTP gateway port | `18789` |
