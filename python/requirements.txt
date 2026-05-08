@@ -1,0 +1,17 @@
+# gRPC
+grpcio==1.62.2
+grpcio-tools==1.62.2
+
+# LLM
+openai==1.30.1
+
+# 环境变量
+python-dotenv==1.0.1
+
+# 网络请求（web_tools / search_tools）
+requests==2.31.0
+
+# 向量嵌入（cold_memory，向量搜索）
+# 可选：未安装时 cold_memory 自动降级为纯文本搜索
+sentence-transformers==2.2.2
+numpy==1.26.4
