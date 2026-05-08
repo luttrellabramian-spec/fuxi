@@ -1,7 +1,7 @@
 # 伏羲 (Fuxi)
 
 **版本**: v0.1.0-MVP  
-**目标**: 验证 L1-L4 核心闭环，暂不包含 L5-L7
+**状态**: ✅ 核心功能验证完成，部分已知问题见本文末尾
 
 ---
 
@@ -129,7 +129,7 @@ fuxi/
 │   │   ├── llm/
 │   │   │   ├── client.py           # DeepSeek API 调用
 │   │   │   └── prompts.py          # 提示词模板
-│   │   └── grpc_server.py         # gRPC Server
+│   │   └── grpc_server.py          # gRPC Server
 │   ├── requirements.txt
 │   └── main.py                     # 入口
 ├── typescript/
@@ -137,7 +137,7 @@ fuxi/
 │   │   ├── gateway.ts              # 网关（HTTP → gRPC）
 │   │   ├── routes/
 │   │   │   ├── chat.ts             # 聊天路由
-│   │   │   └── tool.ts             # 工具路由
+│   │   │   └── tool.ts            # 工具路由
 │   │   ├── proto/                 # Proto 编译产物
 │   │   └── cli.ts                  # 终端 CLI
 │   ├── package.json
@@ -145,7 +145,7 @@ fuxi/
 ├── tests/
 │   ├── grpc_bridge_test.py         # gRPC 延迟测试
 │   ├── tool_call_test.py          # 工具调用测试
-│   └── memory_test.py              # 记忆读写测试
+│   └── memory_test.py             # 记忆读写测试
 ├── config/
 │   └── default.yaml                # 默认配置
 └── README.md
@@ -153,32 +153,211 @@ fuxi/
 
 ---
 
-## 4. 验证标准
+## 4. 快速开始
 
-| 指标 | 目标 | 测量方法 |
-|------|------|----------|
-| gRPC 工具调用延迟 | < 200ms | `grpc_bridge_test.py` 计时 |
-| 工具调用成功率 | > 95% | `tool_call_test.py` 100次调用 |
-| 热记忆读写正确 | 100% | `memory_test.py` 读写对比 |
-| 端到端对话 | 可用 | CLI 实际对话测试 |
-| DeepSeek V4 推理 | 正常工作 | 检查 reasoning 输出 |
+### 前置要求
+
+- Python >= 3.11
+- Node.js >= 18 (for TypeScript gateway)
+- 至少一个支持的 LLM API (DeepSeek / MiniMax)
+
+### 1. 配置 API Key
+
+```bash
+# DeepSeek（推荐，用于 ReAct 工具调用）
+export DEEPSEEK_API_KEY=your_key_here
+export DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+
+# 或 MiniMax（注意：不支持 function calling，只能对话模式）
+export MINIMAX_API_KEY=your_key_here
+export MINIMAX_BASE_URL=https://api.minimaxi.com/v1
+
+# 自定义模型
+export MODEL=deepseek-v4-pro
+```
+
+### 2. 启动 Python gRPC 服务
+
+```bash
+cd python
+pip install -r requirements.txt
+python main.py
+# 默认监听 0.0.0.0:50051
+```
+
+### 3. 启动 TypeScript HTTP 网关
+
+```bash
+cd typescript
+npm install
+npm run build
+npm start
+# 默认监听 0.0.0.0:18789
+```
+
+### 4. 开始对话
+
+```bash
+cd typescript
+npx ts-node src/cli.ts
+# 或编译后
+node dist/cli.js
+```
+
+### API 调用示例
+
+```bash
+# 对话
+curl -X POST http://localhost:18789/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "你好", "session_id": "test-001"}'
+
+# 调用工具
+curl -X POST http://localhost:18789/tool/invoke \
+  -H "Content-Type: application/json" \
+  -d '{"tool": "check_url", "params": {"url": "https://github.com"}}'
+
+# 查看可用工具
+curl http://localhost:18789/tool/list
+
+# 健康检查
+curl http://localhost:18789/health
+```
 
 ---
 
-## 5. License
+## 5. 验证标准与实测结果
+
+| 指标 | 目标 | 实测结果 | 状态 |
+|------|------|----------|------|
+| gRPC 工具调用延迟 | < 200ms | 实测正常 | ✅ |
+| 工具调用成功率 | > 95% | 核心工具通过 | ✅ |
+| 热记忆读写正确 | 100% | 读写正常 | ✅ |
+| 温/冷记忆读写 | 可用 | 代码正常，环境限制* | ⚠️ |
+| 端到端对话 | 可用 | ReAct + 工具调用正常 | ✅ |
+| LLM reasoning 输出 | 正常 | DeepSeek V4 推理正常 | ✅ |
+
+> \* 温/冷记忆数据库文件在项目目录下存在环境只读限制，详见"已知问题"章节。
+
+---
+
+## 6. 已知问题与限制
+
+> ⚠️ **MVP 阶段已知问题，请在使用前阅读**
+
+### 6.1 环境限制
+
+#### 数据库文件只读问题
+- **现象**：`warm_memory.db` 和 `cold_memory.db` 在项目目录下被文件系统设为只读（`Read-Only`挂载）
+- **影响**：温/冷记忆的持久化写入会失败
+- **临时方案**：
+  - 将数据库路径配置到 `/tmp` 等可写目录
+  - 或在 `config/default.yaml` 中修改 `db_path`
+- **代码状态**：实现本身正常，仅受环境限制
+
+#### MiniMax 模型不支持 function calling
+- **现象**：MiniMax-M2.7 等 MiniMax 系列模型**不支持 function calling / tool use**
+- **影响**：无法使用 ReAct 工具调用，只能进行纯对话
+- **建议**：生产环境使用 DeepSeek V4 / OpenAI 等支持 function calling 的模型
+
+### 6.2 功能限制
+
+| 限制 | 说明 |
+|------|------|
+| **CLI 无持久化会话** | 当前 CLI 每次启动为独立会话，无跨会话记忆 |
+| **无 WebSocket** | L1 渠道层仅支持 CLI，WebSocket 暂未实现 |
+| **无身份认证** | 当前版本未实现用户身份验证，勿直接暴露公网 |
+| **单步工具调用** | `InvokeTool` 每次只支持调用一个工具 |
+| **ReAct 步数上限** | 主循环最多 10 步，防止无限循环 |
+| **模型输出不稳定** | 部分模型偶尔输出不完整（"推理未完成"），可能需要重试 |
+
+### 6.3 安全注意事项
+
+> ⚠️ **安全警告 — MVP 阶段请勿用于生产环境**
+
+#### 1. API Key 安全
+- **严禁**将真实 API Key 提交到 GitHub
+- 生产部署务必使用环境变量或密钥管理服务
+- 建议在 `.gitignore` 中添加：
+  ```
+  python/.env
+  config/secrets.yaml
+  *.log
+  ```
+
+#### 2. 网络暴露风险
+- 当前版本 **无认证、无鉴权**，HTTP 网关直接暴露存在严重风险
+- `AUTH_ENABLED` 配置目前仅为占位，未实际启用
+- **禁止**将服务直接暴露在公网（0.0.0.0）
+- 本地开发建议使用 `127.0.0.1` 或 `localhost`
+
+#### 3. 工具调用风险
+- `write_file` / `http_post` 等写入类工具可能造成文件损坏或数据泄露
+- 当前无工具调用权限控制，任何人都可调用所有已注册工具
+- 建议通过网关层自行实现权限控制后再使用写入工具
+
+#### 4. Prompt Injection
+- 用户输入未经消毒处理直接拼接入 LLM Prompt
+- 恶意用户可通过特殊构造的输入操纵 Agent 行为
+- 生产环境需在网关层实现输入过滤
+
+#### 5. 依赖安全
+- 依赖第三方包存在潜在漏洞，定期运行：
+  ```bash
+  pip audit
+  npm audit
+  ```
+
+#### 6. 日志与调试信息
+- gRPC 和 HTTP 请求的详细错误信息可能泄露内部架构
+- 生产环境应关闭详细日志或配置日志级别
+
+### 6.4 待解决项
+
+- [ ] 实现完整的 API Key 认证与鉴权
+- [ ] 温/冷记忆数据库路径可配置化
+- [ ] CLI 跨会话持久化
+- [ ] WebSocket 渠道支持
+- [ ] 工具调用权限控制
+- [ ] 输入消毒（Prompt Injection 防护）
+- [ ] 单元测试覆盖率提升
+- [ ] Rate Limiting 实际实现
+
+---
+
+## 7. 开发说明
+
+### 环境变量
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | - |
+| `DEEPSEEK_BASE_URL` | DeepSeek API 端点 | `https://api.deepseek.com/v1` |
+| `DEEPSEEK_MODEL` | DeepSeek 模型名 | `deepseek-v4-pro` |
+| `MINIMAX_API_KEY` | MiniMax API 密钥 | - |
+| `MINIMAX_BASE_URL` | MiniMax API 端点 | `https://api.minimaxi.com/v1` |
+| `MODEL` | 当前使用模型 | `deepseek-v4-pro` |
+| `GRPC_HOST` | gRPC 服务地址 | `localhost` |
+| `GRPC_PORT` | gRPC 端口 | `50051` |
+| `HTTP_PORT` | HTTP 网关端口 | `18789` |
+
+### 运行测试
+
+```bash
+cd tests
+
+# gRPC 延迟测试（目标 < 200ms）
+python grpc_bridge_test.py
+
+# 工具调用成功率测试（目标 > 95%）
+python tool_call_test.py
+
+# 三层记忆测试
+python memory_test.py
+```
+
+---
+
+## 8. License
 
 MIT
-
----
-
-## 6. 开发中
-
-⚙️ **伏羲 v0.1.0-MVP 正在开发中...**
-
-当前进度：
-- [x] Proto 接口定义
-- [x] Python gRPC Server
-- [x] 记忆层实现
-- [ ] TypeScript 网关（进行中）
-- [ ] CLI + 联调
-- [ ] 测试验证

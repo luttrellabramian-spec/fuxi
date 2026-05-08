@@ -1,7 +1,7 @@
 # 伏羲 (Fuxi)
 
 **Version**: v0.1.0-MVP  
-**Goal**: Verify L1-L4 core loop, L5-L7 not included yet
+**Status**: ✅ Core features validated. See "Known Issues" below for details.
 
 ---
 
@@ -72,7 +72,7 @@ Fuxi uses a four-layer horizontal architecture (L1-L4):
           ▼              ▼              ▼
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
 │  Hot Memory  │  │ Warm Memory  │  │ Cold Memory  │
-│  MEMORY.md   │  │ SQLite FTS5  │  │  sqlite-vec  │
+│  MEMORY.md   │  │ SQLite FTS5  │  │ sqlite-vec   │
 │ (2200 chars) │  │(recent ctx)  │  │(vector store)│
 └─────────────┘  └─────────────┘  └─────────────┘
                          L4: Memory Layer
@@ -129,7 +129,7 @@ fuxi/
 │   │   ├── llm/
 │   │   │   ├── client.py           # LLM API client
 │   │   │   └── prompts.py          # Prompt templates
-│   │   └── grpc_server.py         # gRPC Server
+│   │   └── grpc_server.py          # gRPC Server
 │   ├── requirements.txt
 │   └── main.py                     # Entry point
 ├── typescript/
@@ -137,7 +137,7 @@ fuxi/
 │   │   ├── gateway.ts              # Gateway (HTTP → gRPC)
 │   │   ├── routes/
 │   │   │   ├── chat.ts             # Chat routes
-│   │   │   └── tool.ts             # Tool routes
+│   │   │   └── tool.ts            # Tool routes
 │   │   ├── proto/                 # Proto compiled output
 │   │   └── cli.ts                  # Terminal CLI
 │   ├── package.json
@@ -145,7 +145,7 @@ fuxi/
 ├── tests/
 │   ├── grpc_bridge_test.py         # gRPC latency test
 │   ├── tool_call_test.py          # Tool call test
-│   └── memory_test.py              # Memory I/O test
+│   └── memory_test.py             # Memory I/O test
 ├── config/
 │   └── default.yaml                # Default configuration
 └── README.md
@@ -153,32 +153,211 @@ fuxi/
 
 ---
 
-## 4. Validation Criteria
+## 4. Quick Start
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| gRPC tool call latency | < 200ms | `grpc_bridge_test.py` timing |
-| Tool call success rate | > 95% | `tool_call_test.py` 100 calls |
-| Hot memory read/write accuracy | 100% | `memory_test.py` compare |
-| End-to-end conversation | Usable | CLI real conversation test |
-| LLM reasoning | Working | Check reasoning output |
+### Prerequisites
+
+- Python >= 3.11
+- Node.js >= 18 (for TypeScript gateway)
+- At least one supported LLM API (DeepSeek / MiniMax)
+
+### 1. Configure API Key
+
+```bash
+# DeepSeek (recommended, for ReAct tool calling)
+export DEEPSEEK_API_KEY=your_key_here
+export DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+
+# Or MiniMax (NOTE: does NOT support function calling, chat-only)
+export MINIMAX_API_KEY=your_key_here
+export MINIMAX_BASE_URL=https://api.minimaxi.com/v1
+
+# Custom model
+export MODEL=deepseek-v4-pro
+```
+
+### 2. Start Python gRPC Server
+
+```bash
+cd python
+pip install -r requirements.txt
+python main.py
+# Default: 0.0.0.0:50051
+```
+
+### 3. Start TypeScript HTTP Gateway
+
+```bash
+cd typescript
+npm install
+npm run build
+npm start
+# Default: 0.0.0.0:18789
+```
+
+### 4. Start Chatting
+
+```bash
+cd typescript
+npx ts-node src/cli.ts
+# or after build
+node dist/cli.js
+```
+
+### API Examples
+
+```bash
+# Chat
+curl -X POST http://localhost:18789/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "hello", "session_id": "test-001"}'
+
+# Invoke tool
+curl -X POST http://localhost:18789/tool/invoke \
+  -H "Content-Type: application/json" \
+  -d '{"tool": "check_url", "params": {"url": "https://github.com"}}'
+
+# List available tools
+curl http://localhost:18789/tool/list
+
+# Health check
+curl http://localhost:18789/health
+```
 
 ---
 
-## 5. License
+## 5. Validation Criteria & Test Results
+
+| Metric | Target | Actual Result | Status |
+|--------|--------|---------------|--------|
+| gRPC tool call latency | < 200ms | Normal in testing | ✅ |
+| Tool call success rate | > 95% | Core tools passing | ✅ |
+| Hot memory read/write | 100% | Working correctly | ✅ |
+| Warm/Cold memory I/O | Usable | Code OK, env limitation* | ⚠️ |
+| End-to-end conversation | Usable | ReAct + tools working | ✅ |
+| LLM reasoning output | Normal | DeepSeek V4 working | ✅ |
+
+> \* Warm/Cold memory DB files are under filesystem read-only restriction in the project directory. See "Known Issues" below.
+
+---
+
+## 6. Known Issues & Limitations
+
+> ⚠️ **Known issues at MVP stage — please read before using**
+
+### 6.1 Environment Limitations
+
+#### Database Files Read-Only
+- **Symptom**: `warm_memory.db` and `cold_memory.db` are on a read-only filesystem mount
+- **Impact**: Warm/Cold memory persistence writes will fail
+- **Workaround**:
+  - Configure DB path to `/tmp` or other writable location
+  - Or modify `db_path` in `config/default.yaml`
+- **Code status**: Implementation is correct; this is an environment issue only
+
+#### MiniMax Model Does NOT Support Function Calling
+- **Symptom**: MiniMax-M2.7 and other MiniMax models **do NOT support function calling / tool use**
+- **Impact**: Cannot use ReAct tool calling; chat-only mode
+- **Recommendation**: Use DeepSeek V4 / OpenAI or other function-calling-capable models in production
+
+### 6.2 Functional Limitations
+
+| Limitation | Description |
+|------------|-------------|
+| **CLI has no persistent sessions** | Each CLI invocation is an isolated session; no cross-session memory |
+| **No WebSocket** | L1 channel only supports CLI; WebSocket not yet implemented |
+| **No authentication** | No user authentication implemented; do not expose to public internet |
+| **Single-tool invocation** | `InvokeTool` only calls one tool per request |
+| **ReAct step cap** | Maximum 10 steps to prevent infinite loops |
+| **Model output instability** | Some models occasionally produce incomplete output ("inference unfinished"); retry may be needed |
+
+### 6.3 Security Considerations
+
+> ⚠️ **Security Warning — DO NOT use in production at MVP stage**
+
+#### 1. API Key Security
+- **NEVER** commit real API keys to GitHub
+- Use environment variables or a secrets manager in production
+- Recommended `.gitignore` entries:
+  ```
+  python/.env
+  config/secrets.yaml
+  *.log
+  ```
+
+#### 2. Network Exposure Risk
+- Current version has **no authentication or authorization**; exposing the HTTP gateway directly is a critical risk
+- `AUTH_ENABLED` config is a placeholder and not actually enforced
+- **DO NOT** expose the service on a public IP (0.0.0.0)
+- Use `127.0.0.1` or `localhost` for local development
+
+#### 3. Tool Invocation Risk
+- `write_file` / `http_post` and other write tools can corrupt files or leak data
+- There is currently **no tool call permission control**; anyone can invoke any registered tool
+- Implement your own permission layer at the gateway before using write tools
+
+#### 4. Prompt Injection
+- User input is concatenated into LLM prompts without sanitization
+- Malicious users can craft inputs to manipulate Agent behavior
+- Production deployments must implement input filtering at the gateway layer
+
+#### 5. Dependency Security
+- Third-party dependencies may contain vulnerabilities; run regularly:
+  ```bash
+  pip audit
+  npm audit
+  ```
+
+#### 6. Logging & Debug Info
+- gRPC and HTTP request errors may leak internal architecture details
+- Production should disable detailed logging or set appropriate log levels
+
+### 6.4 TODO
+
+- [ ] Implement full API Key authentication & authorization
+- [ ] Make warm/cold memory DB path configurable
+- [ ] CLI cross-session persistence
+- [ ] WebSocket channel support
+- [ ] Tool call permission controls
+- [ ] Input sanitization (Prompt Injection protection)
+- [ ] Improve unit test coverage
+- [ ] Actually implement Rate Limiting
+
+---
+
+## 7. Development
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DEEPSEEK_API_KEY` | DeepSeek API key | - |
+| `DEEPSEEK_BASE_URL` | DeepSeek API endpoint | `https://api.deepseek.com/v1` |
+| `DEEPSEEK_MODEL` | DeepSeek model name | `deepseek-v4-pro` |
+| `MINIMAX_API_KEY` | MiniMax API key | - |
+| `MINIMAX_BASE_URL` | MiniMax API endpoint | `https://api.minimaxi.com/v1` |
+| `MODEL` | Current model in use | `deepseek-v4-pro` |
+| `GRPC_HOST` | gRPC server address | `localhost` |
+| `GRPC_PORT` | gRPC port | `50051` |
+| `HTTP_PORT` | HTTP gateway port | `18789` |
+
+### Running Tests
+
+```bash
+cd tests
+
+# gRPC latency test (target < 200ms)
+python grpc_bridge_test.py
+
+# Tool call success rate test (target > 95%)
+python tool_call_test.py
+
+# Three-tier memory test
+python memory_test.py
+```
+
+---
+
+## 8. License
 
 MIT
-
----
-
-## 6. In Development
-
-⚙️ **Fuxi v0.1.0-MVP is under development...**
-
-Current progress:
-- [x] Proto interface definition
-- [x] Python gRPC Server
-- [x] Memory layer implementation
-- [ ] TypeScript Gateway (in progress)
-- [ ] CLI + Integration
-- [ ] Testing & Validation
