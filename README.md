@@ -38,7 +38,7 @@ Python Engine (:50051)
 ```bash
 # 1. Configure API Key
 export DEEPSEEK_API_KEY=your_key_here
-export DEEPSEEK_BASE_URL=https://api.minimaxi.com/v1  # or your preferred endpoint
+export DEEPSEEK_BASE_URL=https://api.example.com/v1  # or your preferred endpoint
 
 # 2. Start Python gRPC Service
 cd python
@@ -74,7 +74,7 @@ curl -X POST http://localhost:18789/chat \
 | Env Variable | Description | Default |
 |--------------|-------------|---------|
 | `DEEPSEEK_API_KEY` | API key | - |
-| `DEEPSEEK_BASE_URL` | API endpoint | `https://api.minimaxi.com/v1` |
+| `DEEPSEEK_BASE_URL` | API endpoint | `https://api.example.com/v1` |
 | `DEFAULT_MODEL` | Model name | `MiniMax-M2.7` |
 | `GRPC_PORT` | gRPC port | `50051` |
 | `HTTP_PORT` | HTTP gateway port | `18789` |
@@ -160,7 +160,7 @@ curl -X POST http://localhost:18789/chat \
 | 环境变量 | 说明 | 默认值 |
 |----------|------|--------|
 | `DEEPSEEK_API_KEY` | API密钥 | - |
-| `DEEPSEEK_BASE_URL` | API端点 | `https://api.minimaxi.com/v1` |
+| `DEEPSEEK_BASE_URL` | API端点 | `https://api.example.com/v1` |
 | `DEFAULT_MODEL` | 模型名称 | `MiniMax-M2.7` |
 | `GRPC_PORT` | gRPC端口 | `50051` |
 | `HTTP_PORT` | HTTP网关端口 | `18789` |
