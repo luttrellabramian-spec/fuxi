@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package fuxi;
+
+service FuxiCore {
+  rpc InvokeTool(ToolRequest) returns (ToolResult);
+  rpc StreamComplete(CompletionRequest) returns (stream CompletionChunk);
+  rpc Heartbeat(SessionPing) returns (SessionPong);
+}
+
+service MemoryService {
+  rpc QueryHot(HotQuery) returns (HotResult);
+  rpc QueryWarm(WarmQuery) returns (WarmResult);
+  rpc QueryCold(ColdQuery) returns (ColdResult);
+  rpc PersistMemory(MemoryWrite) returns (PersistResult);
+}
+
+message ToolRequest {
+  string tool_name = 1;
+  string arguments_json = 2;
+  string session_id = 3;
+  string model = 4;  // 可选：指定本次工具调用使用的模型
+}
+
+message ToolResult {
+  bool success = 1;
+  string result_json = 2;
+  string error = 3;
+  int64 elapsed_ms = 4;
+}
+
+message CompletionRequest {
+  string session_id = 1;
+  string user_message = 2;
+  string model = 3;
+  int32 max_tokens = 4;
+}
+
+message CompletionChunk {
+  string content = 1;
+  bool is_final = 2;
+  string reasoning = 3;
+}
+
+message SessionPing {
+  string session_id = 1;
+}
+
+message SessionPong {
+  bool alive = 1;
+  int64 timestamp = 2;
+}
+
+message HotQuery {
+  string session_id = 1;
+}
+
+message HotResult {
+  string memory_content = 1;
+  int32 char_count = 2;
+}
+
+message WarmQuery {
+  string query = 1;
+  int32 limit = 2;
+  string session_id = 3;
+}
+
+message WarmResult {
+  repeated MemoryEntry entries = 1;
+}
+
+message MemoryEntry {
+  string id = 1;
+  string content = 2;
+  int64 timestamp = 3;
+  string channel = 4;
+}
+
+message ColdQuery {
+  string query = 1;
+  int32 limit = 2;
+  string session_id = 3;
+}
+
+message ColdResult {
+  repeated SemanticMemory memories = 1;
+}
+
+message SemanticMemory {
+  string id = 1;
+  string content = 2;
+  float similarity = 3;
+}
+
+message MemoryWrite {
+  string memory_type = 1;
+  string content = 2;
+  map<string, string> metadata = 3;
+  string session_id = 4;
+  string summary = 5;      // 冷记忆的摘要文本（用于向量检索）
+}
+
+message PersistResult {
+  bool success = 1;
+  string id = 2;
+  string error = 3;
+}

@@ -1,0 +1,71 @@
+# 伏羲配置 - 默认配置
+# 用户可覆盖：同名环境变量 或 config/local.yaml
+
+# ========== LLM API ==========
+# OpenAI 兼容接口，支持任意 Provider
+# 必须配置 api_key 和 base_url 才能使用
+llm:
+  # API 密钥（必填，请在 config/local.yaml 或环境变量中设置）
+  api_key: ""
+  # API 地址（必填，请在 config/local.yaml 或环境变量中设置）
+  # 示例：
+  #   DeepSeek: https://api.deepseek.com/v1
+  #   OpenAI: https://api.openai.com/v1
+  #   本地模型: http://localhost:11434/v1
+  base_url: ""
+  # 模型名称（用户必须配置）
+  model: ""
+  # 最大 token 数
+  max_tokens: 4096
+  # 温度参数
+  temperature: 0.7
+
+# ========== gRPC 服务 ==========
+grpc:
+  host: "localhost"
+  port: 50051
+  # 是否使用 TLS（生产环境建议开启）
+  use_tls: false
+  # 最大消息大小（字节）
+  max_message_length: 10485760  # 10MB
+
+# ========== HTTP 网关 ==========
+gateway:
+  port: 18789
+  host: "0.0.0.0"
+
+# ========== 速率限制 ==========
+rate_limit:
+  # 时间窗口（毫秒）
+  window_ms: 900000      # 15 分钟
+  # 每窗口最大请求数
+  max: 100
+
+# ========== 鉴权 ==========
+auth:
+  # 是否强制验证 API key
+  enabled: true
+
+# ========== 记忆层 ==========
+memory:
+  hot:
+    # 热记忆文件路径（相对于项目根）
+    file: "MEMORY.md"
+    # 字符上限
+    char_limit: 2200
+  warm:
+    # 温记忆数据库路径
+    db: "warm_memory.db"
+    # 最大消息数
+    max_messages: 50
+  cold:
+    # 冷记忆数据库路径
+    db: "cold_memory.db"
+    # 向量嵌入模型（可选）
+    embedding_model: "all-MiniLM-L6-v2"
+
+# ========== ReAct 引擎 ==========
+engine:
+  max_steps: 10
+  # 推理超时（秒）
+  timeout: 60
