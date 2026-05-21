@@ -1,8 +1,6 @@
 """搜索工具 - 支持多引擎内容检索"""
-import json
-import os
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from . import registry
 
@@ -185,14 +183,20 @@ def search_replace(file_path: str, search: str, replace: str, count: int = -1, b
             replaced = content.count(search)
             new_content = content.replace(search, replace)
         else:
-            replaced = 0
-            parts = content.split(search, count + 1)
-            if len(parts) > count + 1:
-                replaced = count
-                new_content = search.join(parts[:count + 1]) + search.join(parts[count + 1:])
-            else:
-                replaced = len(parts) - 1
-                new_content = search.join(parts)
+            result_parts = []
+            remaining = content
+            actual_replaced = 0
+            for _ in range(count):
+                idx = remaining.find(search)
+                if idx == -1:
+                    break
+                result_parts.append(remaining[:idx])
+                result_parts.append(replace)
+                remaining = remaining[idx + len(search):]
+                actual_replaced += 1
+            result_parts.append(remaining)
+            new_content = "".join(result_parts)
+            replaced = actual_replaced
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)

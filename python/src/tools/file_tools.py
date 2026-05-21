@@ -30,23 +30,23 @@ def _validate_path(path: str) -> str:
     Raises:
         ValueError: 路径不合法
     """
-    # 规范化路径
+    # 先检查路径遍历攻击（检查原始输入）
+    if '..' in path:
+        raise ValueError(f"Access denied: path traversal detected")
+
+    # 规范化路径（在检查敏感目录之后进行）
     abs_path = os.path.abspath(path)
-    
+
     # 检查是否在允许的目录内
     if not abs_path.startswith(_BASE_DIR):
         raise ValueError(f"Access denied: path outside allowed directory")
-    
-    # 检查是否包含敏感目录
+
+    # 检查是否包含敏感目录（使用规范化后的相对路径）
     rel_path = os.path.relpath(abs_path, _BASE_DIR)
     for pattern in _SENSITIVE_PATTERNS:
         if pattern in rel_path.split(os.sep):
             raise ValueError(f"Access denied: sensitive directory '{pattern}'")
-    
-    # 检查路径遍历攻击
-    if '..' in path:
-        raise ValueError(f"Access denied: path traversal detected")
-    
+
     return abs_path
 
 
@@ -61,12 +61,12 @@ def read_file(path: str, max_size: int = 1024 * 1024) -> str:
     """
     try:
         validated_path = _validate_path(path)
-        
+
         # 检查文件大小
         file_size = os.path.getsize(validated_path)
         if file_size > max_size:
             raise ValueError(f"File too large: {file_size} bytes (max: {max_size})")
-        
+
         with open(validated_path, "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
@@ -87,12 +87,12 @@ def write_file(path: str, content: str, max_size: int = 10 * 1024 * 1024) -> Dic
     """
     try:
         validated_path = _validate_path(path)
-        
+
         # 检查内容大小
         content_size = len(content.encode('utf-8'))
         if content_size > max_size:
             return {"success": False, "error": f"Content too large: {content_size} bytes (max: {max_size})"}
-        
+
         # 创建备份（如果文件存在）
         if os.path.exists(validated_path):
             backup_path = validated_path + '.bak'
@@ -101,7 +101,7 @@ def write_file(path: str, content: str, max_size: int = 10 * 1024 * 1024) -> Dic
                 shutil.copy2(validated_path, backup_path)
             except Exception:
                 pass  # 备份失败不影响写入
-        
+
         with open(validated_path, "w", encoding="utf-8") as f:
             f.write(content)
         return {"success": True, "message": f"File written: {path}", "size": content_size}
@@ -168,7 +168,7 @@ def write_json(path: str, data: Any) -> Dict[str, Any]:
     """
     try:
         validated_path = _validate_path(path)
-        
+
         # 创建备份（如果文件存在）
         if os.path.exists(validated_path):
             backup_path = validated_path + '.bak'
@@ -177,7 +177,7 @@ def write_json(path: str, data: Any) -> Dict[str, Any]:
                 shutil.copy2(validated_path, backup_path)
             except Exception:
                 pass
-        
+
         with open(validated_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return {"success": True, "message": f"JSON written: {path}"}

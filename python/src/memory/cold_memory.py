@@ -20,25 +20,45 @@ class ColdMemory:
     """冷记忆管理器 - 向量检索（带纯 SQLite 回退模式）"""
 
     def __init__(self, db_path: str = "cold_memory.db", embedding_model: str = "all-MiniLM-L6-v2"):
+        # 如果路径包含非 ASCII 字符（如中文），回退到临时目录
+        try:
+            import sqlite3
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            conn.execute("SELECT 1")
+            conn.close()
+        except Exception:
+            import tempfile
+            db_path = os.path.join(tempfile.gettempdir(), "fuxi_cold_memory.db")
         self.db_path = db_path
         self._local = threading.local()
         self._has_embedding = _HAS_EMBEDDING
         self._model = None
-        self._embedding_dim = 384  # all-MiniLM-L6-v2 默认维度
-        if _HAS_EMBEDDING:
-            try:
-                self._model = SentenceTransformer(embedding_model)
-                self._embedding_dim = self._model.get_embedding_dimension() or 384  # Updated method name
-            except Exception:
-                self._has_embedding = False
-
-        self._init_db()
+        self._embedding_dim = 384
+        self._embedding_model = embedding_model
+        self._initialized = False
+        self._init_lock = threading.Lock()
 
     def _get_conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn"):
             self._local.conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._local.conn.row_factory = sqlite3.Row
         return self._local.conn
+
+    def _ensure_initialized(self) -> None:
+        """Lazy initialization of embedding model"""
+        if self._initialized:
+            return
+        with self._init_lock:
+            if self._initialized:
+                return
+            if _HAS_EMBEDDING and self._model is None:
+                try:
+                    self._model = SentenceTransformer(self._embedding_model)
+                    self._embedding_dim = self._model.get_embedding_dimension() or 384
+                except Exception:
+                    self._has_embedding = False
+            self._init_db()
+            self._initialized = True
 
     def _get_embedding(self, text: str) -> Optional[List[float]]:
         """生成文本 embedding"""
@@ -75,6 +95,7 @@ class ColdMemory:
         msg_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """插入一条摘要到冷记忆"""
+        self._ensure_initialized()
         msg_id = msg_id or str(uuid.uuid4())
         timestamp = time.time()
         embedding = self._get_embedding(summary)
@@ -117,6 +138,7 @@ class ColdMemory:
         session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """搜索相似的摘要（向量检索或纯文本回退）"""
+        self._ensure_initialized()
         conn = self._get_conn()
         try:
             # 空查询直接返回最近条目
@@ -192,6 +214,7 @@ class ColdMemory:
 
     def get_recent(self, session_id: Optional[str] = None, limit: int = 10) -> Dict[str, Any]:
         """获取最近的摘要"""
+        self._ensure_initialized()
         conn = self._get_conn()
         try:
             if session_id:
@@ -221,6 +244,7 @@ class ColdMemory:
 
     def clear_session(self, session_id: str) -> Dict[str, Any]:
         """清空某个会话的冷记忆"""
+        self._ensure_initialized()
         conn = self._get_conn()
         try:
             with conn:
@@ -231,6 +255,7 @@ class ColdMemory:
 
     def get_stats(self) -> Dict[str, Any]:
         """获取冷记忆统计"""
+        self._ensure_initialized()
         conn = self._get_conn()
         try:
             cursor = conn.execute("SELECT COUNT(*) as total FROM summaries")

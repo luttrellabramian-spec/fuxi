@@ -1,3 +1,3 @@
-from .client import DeepSeekClient
+from .client import LLMClient
 
-__all__ = ["DeepSeekClient"]
+__all__ = ["LLMClient"]

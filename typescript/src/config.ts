@@ -58,14 +58,14 @@ export const config = {
 
   // LLM API 配置（可选，会被请求中携带的 Authorization 覆盖）
   // 用户可在请求头中传递自己的 API key，gateway 会转发给 gRPC 服务
-  auth: {
-    // 是否强制验证 API key
-    enabled: process.env.AUTH_ENABLED !== "false" || yamlConfig.auth?.enabled !== false,
-    // 默认 API key（服务启动时使用，未提供 Authorization header 时生效）
-    apiKey: process.env.DEEPSEEK_API_KEY || yamlConfig.llm?.api_key || "",
-    // 默认 base_url（未提供 base-url header 时生效）
-    baseUrl: process.env.DEEPSEEK_BASE_URL || yamlConfig.llm?.base_url || "",
-    // 默认模型
-    model: process.env.DEFAULT_MODEL || process.env.DEEPSEEK_MODEL || yamlConfig.llm?.model || "",
-  },
+    auth: {
+        // 是否强制验证 API key
+        enabled: process.env.AUTH_ENABLED === 'true' || (yamlConfig.auth?.enabled === true && process.env.AUTH_ENABLED !== 'false'),
+        // 默认 API key（服务启动时使用，未提供 Authorization header 时生效）
+        apiKey: process.env.LLM_API_KEY || yamlConfig.llm?.api_key || "",
+        // 默认 base_url（未提供 base-url header 时生效）
+        baseUrl: process.env.LLM_BASE_URL || yamlConfig.llm?.base_url || "",
+        // 默认模型
+        model: process.env.DEFAULT_MODEL || process.env.LLM_MODEL || yamlConfig.llm?.model || "",
+    },
 };

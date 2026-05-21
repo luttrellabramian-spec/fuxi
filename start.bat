@@ -4,14 +4,14 @@ setlocal enabledelayedexpansion
 
 echo.
 echo ============================================================
-echo   伏羲 V0.1.0 - AI Agent 引擎
+echo   伏羲 V0.2.5 WIP - AI Agent 引擎
 echo ============================================================
 echo.
 
 REM 检查 Python
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [错误] 未找到 Python，请先安装 Python 3.10+
+    echo [错误] 未找到 Python，请先安装 Python 3.11+
     pause
     exit /b 1
 )
@@ -75,6 +75,18 @@ if not exist "config\local.yaml" (
 )
 
 echo.
+echo [编译] 正在编译 TypeScript 网关...
+cd typescript
+call npm run build
+if errorlevel 1 (
+    echo [错误] TypeScript 编译失败，请查看上方日志
+    pause
+    exit /b 1
+)
+cd ..
+echo [完成] TypeScript 编译完成
+
+echo.
 echo [启动] 正在启动伏羲服务...
 echo.
 
@@ -90,7 +102,7 @@ timeout /t 2 /nobreak >nul
 REM 启动 TypeScript 网关
 echo [2/2] 启动 HTTP 网关...
 cd typescript
-start /b cmd /c "npm start"
+start /b cmd /c "node dist\gateway.js"
 cd ..
 
 REM 等待网关启动

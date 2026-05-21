@@ -1,12 +1,10 @@
-"""伏羲 gRPC 服务端"""
+"""伏羲 gRPC 服务端（v0.2.0: 集成连接池 + 断路器 + 进化层）"""
 import grpc
-from concurrent import futures
 import time
 import os
 import sys
 import signal
 import logging
-import copy
 
 # 当前目录是 python/src
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -19,14 +17,16 @@ import fuxi_pb2 as fuxi_pb2
 import fuxi_pb2_grpc as fuxi_pb2_grpc
 
 # 预先导入 tools 模块以触发注册
-import tools
-import tools.file_tools
 
 import engine.fuxi_engine as fuxi_engine_module
+from engine.execution_logger import StructuredLogger
+from engine.tool_tracker import ToolCallTracker
 from memory.hot_memory import HotMemory
 from memory.warm_memory import WarmMemory
 from memory.cold_memory import ColdMemory
-from llm.client import DeepSeekClient
+from llm.client import LLMClient
+from grpc_utils.connection_pool import GrpcConnectionPool
+from evolution.selector import Selector
 
 FuxiEngine = fuxi_engine_module.FuxiEngine
 
@@ -38,9 +38,10 @@ logging.basicConfig(
 logger = logging.getLogger('fuxi_grpc')
 
 # 从环境变量加载配置
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "")
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
 DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "")
+AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "true").lower() != "false"
 
 # 默认超时配置（毫秒）
 DEFAULT_PORT = 50051
@@ -48,16 +49,35 @@ DEFAULT_TIMEOUT = 30000
 
 
 class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
-    """Fuxi gRPC 服务实现"""
+    """Fuxi gRPC 服务实现（v0.2.0: 集成 Selector + 进化层）"""
 
     def __init__(self):
+        # 创建执行日志器和工具追踪器
+        self._execution_logger = StructuredLogger()
+        self._tool_tracker = ToolCallTracker()
+
+        # v0.2.0: 创建统一 Selector（整合工具排序 + 策略推荐 + 记忆检索）
+        self._warm_memory = WarmMemory()
+        self._cold_memory = ColdMemory()
+        self._selector = Selector(
+            tracker_db_path=self._tool_tracker.db_path,
+            warm_memory=self._warm_memory,
+            cold_memory=self._cold_memory,
+        )
+
         self.engine = FuxiEngine(
-            deepseek_key=DEEPSEEK_API_KEY,
-            base_url=DEEPSEEK_BASE_URL,
+            llm_key=LLM_API_KEY,
+            base_url=LLM_BASE_URL,
+            model=DEFAULT_MODEL,
+            execution_logger=self._execution_logger,
+            tool_tracker=self._tool_tracker,
+            selector=self._selector,
+            warm_memory=self._warm_memory,
+            cold_memory=self._cold_memory,
         )
         # 保存默认配置，用于每个请求的副本
-        self._default_api_key = DEEPSEEK_API_KEY
-        self._default_base_url = DEEPSEEK_BASE_URL
+        self._default_api_key = LLM_API_KEY
+        self._default_base_url = LLM_BASE_URL
         self._default_model = DEFAULT_MODEL
 
     def _get_metadata(self, context) -> dict:
@@ -71,13 +91,13 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
 
     def _check_auth(self, context, metadata: dict) -> bool:
         """验证 API key"""
+        if not AUTH_ENABLED:
+            return True  # 认证已关闭
         if not self._default_api_key:
             return True  # 未配置 key，不验证
         provided_key = metadata.get("api_key", "")
         if not provided_key:
-            # 配置了 key 但客户端没提供，拒绝
             return False
-        # 使用 hmac.compare_digest 防止时序攻击
         import hmac
         return hmac.compare_digest(provided_key, self._default_api_key)
 
@@ -122,7 +142,11 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
             return fuxi_pb2.ToolResult(success=False, error=str(e))
 
     def StreamComplete(self, request, context):
-        """流式回复"""
+        """流式回复 - 使用真正的流式 LLM API
+        
+        优化：复用引擎的工具注册表和热记忆，仅替换 LLM 客户端配置，
+        避免每次请求都创建完整的引擎实例。
+        """
         try:
             metadata = self._get_metadata(context)
 
@@ -136,42 +160,52 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
                 )
                 return
 
-            # 获取配置（不修改共享状态）
             config = self._get_client_config(metadata, request.model)
 
-            # 创建独立的 LLM 客户端（线程安全）
-            llm_client = DeepSeekClient(
-                api_key=config["api_key"],
-                base_url=config["base_url"],
-                model=config["model"],
-            )
+            # 检查引擎是否需要切换模型配置
+            current_model = self.engine.llm.model
+            target_model = config.get("model") or current_model
 
-            # 创建临时引擎实例（使用独立的 LLM 客户端）
-            temp_engine = FuxiEngine(
-                deepseek_key=config["api_key"],
-                base_url=config["base_url"],
-            )
-            # 替换 LLM 客户端
-            temp_engine.deepseek = llm_client
+            if (target_model != current_model or
+                config.get("api_key") != self.engine.llm.api_key or
+                config.get("base_url") != self.engine.llm.base_url):
+                # 配置不同时，只替换引擎的 LLM 客户端，不重建整个引擎
+                # 先关闭旧客户端的 HTTP 连接
+                if hasattr(self.engine.llm, '_client') and self.engine.llm._client is not None:
+                    try:
+                        self.engine.llm._client.close()
+                    except Exception:
+                        pass
+                self.engine.llm = LLMClient(
+                    api_key=config["api_key"],
+                    base_url=config["base_url"],
+                    model=target_model,
+                )
 
-            # 使用 ReAct 引擎处理（含工具调用）
-            run_result = temp_engine.run(
+            # 使用流式方法
+            for event in self.engine.stream_run(
                 user_message=request.user_message,
                 session_id=request.session_id or "default",
-            )
+            ):
+                if event["type"] == "token":
+                    yield fuxi_pb2.CompletionChunk(
+                        content=event["content"],
+                        is_final=False,
+                        reasoning="",
+                    )
+                elif event["type"] == "done":
+                    yield fuxi_pb2.CompletionChunk(
+                        content=event["content"],
+                        is_final=True,
+                        reasoning="",
+                    )
+                elif event["type"] == "error":
+                    yield fuxi_pb2.CompletionChunk(
+                        content=f"Error: {event['content']}",
+                        is_final=True,
+                        reasoning="",
+                    )
 
-            if run_result.get("success"):
-                yield fuxi_pb2.CompletionChunk(
-                    content=run_result.get("content", ""),
-                    is_final=True,
-                    reasoning="",
-                )
-            else:
-                yield fuxi_pb2.CompletionChunk(
-                    content=f"Error: {run_result.get('error', 'Unknown')}",
-                    is_final=True,
-                    reasoning="",
-                )
         except Exception as e:
             logger.error(f"StreamComplete error: {e}")
             yield fuxi_pb2.CompletionChunk(
@@ -215,7 +249,7 @@ class MemoryServiceServicer(fuxi_pb2_grpc.MemoryServiceServicer):
                 )
             else:
                 result = self.warm_memory.get_recent(request.session_id, limit=limit)
-            
+
             entries = []
             if result.get("success"):
                 for entry in result["entries"]:
@@ -249,7 +283,7 @@ class MemoryServiceServicer(fuxi_pb2_grpc.MemoryServiceServicer):
                     session_id=request.session_id,
                     limit=limit,
                 )
-            
+
             memories = []
             if result.get("success"):
                 for entry in result["entries"]:
@@ -301,11 +335,15 @@ class MemoryServiceServicer(fuxi_pb2_grpc.MemoryServiceServicer):
                     error=result.get("error", ""),
                 )
             elif request.memory_type == "cold":
+                try:
+                    metadata_val = dict(request.metadata) if hasattr(request, 'metadata') and request.metadata else None
+                except (TypeError, ValueError, AttributeError):
+                    metadata_val = None
                 result = self.cold_memory.insert_summary(
                     content=request.content,
                     summary=request.summary or request.content[:200],
                     session_id=request.session_id or "default",
-                    metadata=dict(request.metadata) if request.metadata else None,
+                    metadata=metadata_val,
                 )
                 return fuxi_pb2.PersistResult(
                     success=result.get("success", False),
@@ -328,28 +366,34 @@ class MemoryServiceServicer(fuxi_pb2_grpc.MemoryServiceServicer):
 
 
 def serve(port: int = 50051):
-    """启动 gRPC 服务"""
-    server = grpc.server(
-        futures.ThreadPoolExecutor(max_workers=10),
-        options=[
-            ("grpc.max_receive_message_length", 10 * 1024 * 1024),  # 10MB
-            ("grpc.max_send_message_length", 10 * 1024 * 1024),
-        ],
-    )
+    """启动 gRPC 服务（v0.2.0: 集成连接池）
+
+    使用 GrpcConnectionPool 管理服务器生命周期和并发控制：
+    - 内置 keepalive/heartbeat 参数
+    - Semaphore(100) 并发控制
+    - CircuitBreaker 熔断保护
+    """
+    # 通过连接池创建服务器（获取正确的 keepalive 参数）
+    pool = GrpcConnectionPool.get_instance(max_workers=10)
+    server = pool.create_server(port=port)
+
     fuxi_pb2_grpc.add_FuxiCoreServicer_to_server(
         FuxiCoreServicer(), server
     )
     fuxi_pb2_grpc.add_MemoryServiceServicer_to_server(
         MemoryServiceServicer(), server
     )
-    server.add_insecure_port(f"[::]:{port}")
-    server.start()
-    logger.info(f"Fuxi gRPC Server started on port {port}")
+
+    # 注册健康检查
+    pool.set_health_check(lambda: True)
+
+    pool.start_server()
+    logger.info(f"Fuxi gRPC Server started on port {port}, concurrency limit={GrpcConnectionPool.MAX_CONCURRENT_REQUESTS}")
 
     # 优雅关闭
     def shutdown(signum, frame):
         logger.info("Shutting down gracefully...")
-        server.stop(grace=10).wait()
+        pool.shutdown(grace=10)
         logger.info("Server stopped.")
         sys.exit(0)
 

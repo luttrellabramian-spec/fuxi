@@ -1,7 +1,4 @@
 """记忆工具 - 提供 memory_write / memory_query / memory_get_recent 工具"""
-import json
-import uuid
-import time
 from typing import Dict, Any
 
 from . import registry

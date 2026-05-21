@@ -3,7 +3,7 @@ import json
 import re
 import time
 import ipaddress
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from urllib.parse import urlparse
 
 from . import registry
@@ -42,21 +42,21 @@ def _validate_url(url: str) -> str:
     # 检查 URL 长度
     if len(url) > _MAX_URL_LENGTH:
         raise ValueError(f"URL too long: {len(url)} chars (max: {_MAX_URL_LENGTH})")
-    
+
     # 解析 URL
     try:
         parsed = urlparse(url)
     except Exception:
         raise ValueError(f"Invalid URL format")
-    
+
     # 检查协议
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise ValueError(f"Unsupported scheme: {parsed.scheme} (allowed: {_ALLOWED_SCHEMES})")
-    
+
     # 检查是否为空主机
     if not parsed.hostname:
         raise ValueError(f"Missing hostname")
-    
+
     # 解析主机名到 IP 地址
     try:
         import socket
@@ -66,18 +66,18 @@ def _validate_url(url: str) -> str:
         raise ValueError(f"Cannot resolve hostname: {parsed.hostname}")
     except ValueError:
         raise ValueError(f"Invalid IP address: {ip_str}")
-    
+
     # 检查是否是内网 IP
     for network in _PRIVATE_NETWORKS:
         if ip in network:
             raise ValueError(f"Access denied: private network IP {ip}")
-    
+
     # 检查端口（禁止常见内部服务端口）
     if parsed.port:
         _blocked_ports = {22, 23, 25, 445, 3389, 5900, 6379, 27017}
         if parsed.port in _blocked_ports:
             raise ValueError(f"Access denied: blocked port {parsed.port}")
-    
+
     return url
 
 
@@ -111,7 +111,7 @@ def http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 
     try:
         # 验证 URL
         validated_url = _validate_url(url)
-        
+
         import requests
 
         default_headers = {
@@ -174,7 +174,7 @@ def http_post(url: str, data: Any = None, json_data: Optional[Dict] = None, head
     try:
         # 验证 URL
         validated_url = _validate_url(url)
-        
+
         import requests
 
         default_headers = {
@@ -272,13 +272,13 @@ def fetch_api(url: str, method: str = "GET", headers: Optional[Dict[str, str]] =
     try:
         # 验证 URL
         validated_url = _validate_url(url)
-        
+
         # 验证 HTTP 方法
         allowed_methods = {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"}
         method_upper = method.upper()
         if method_upper not in allowed_methods:
             return {"success": False, "error": f"Unsupported method: {method} (allowed: {allowed_methods})"}
-        
+
         import requests
 
         default_headers = {
@@ -339,7 +339,7 @@ def check_url(url: str, timeout: int = 5) -> Dict[str, Any]:
     try:
         # 验证 URL
         validated_url = _validate_url(url)
-        
+
         import requests
 
         start = time.time()
@@ -378,7 +378,6 @@ def parse_headers(header_string: str) -> Dict[str, Any]:
     Returns:
         {"success": true, "headers": {"Content-Type": "..."}}
     """
-    import re
 
     headers = {}
     lines = header_string.strip().split("\n")

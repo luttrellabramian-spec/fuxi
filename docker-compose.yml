@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Python gRPC 服务（核心引擎）
+  fuxi-python:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: fuxi-python
+    container_name: fuxi-python
+    ports:
+      - "50051:50051"
+    environment:
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen3.6-plus}
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - GRPC_PORT=50051
+    volumes:
+      - ./python/src:/app/python/src
+      - ./logs:/app/logs
+      - ./warm_memory.db:/app/warm_memory.db
+      - ./cold_memory.db:/app/cold_memory.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node.js HTTP 网关
+  fuxi-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: fuxi-gateway
+    container_name: fuxi-gateway
+    ports:
+      - "18789:18789"
+    environment:
+      - GRPC_HOST=fuxi-python
+      - GRPC_PORT=50051
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen3.6-plus}
+      - HTTP_PORT=18789
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
+    depends_on:
+      - fuxi-python
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:18789/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  default:
+    name: fuxi-network
