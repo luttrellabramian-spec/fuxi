@@ -15,6 +15,9 @@
     # 自动启动服务再验证
     python scripts/e2e_verify.py --start
 
+    # 真实 LLM 对话（需 E2E_LIVE=1 + config/local.yaml）
+    E2E_LIVE=1 python scripts/e2e_verify.py
+
     # 自定义端口
     python scripts/e2e_verify.py --http-port 18789 --grpc-port 50051
 
@@ -22,6 +25,11 @@
     0  — 所有检查通过
     1  — 有检查失败
     2  — 启动失败
+
+环境变量：
+    E2E_LIVE   设 1 启用真实 LLM 对话测试（需 config/local.yaml）
+    HTTP_PORT  默认 18789
+    GRPC_PORT  默认 50051
 """
 import argparse
 import json
@@ -104,12 +112,17 @@ def http_get(url: str, timeout: float = 5.0, raw: bool = False) -> Tuple[int, Op
         return 0, None
 
 
-def http_post(url: str, payload: Dict[str, Any], timeout: float = 30.0) -> Tuple[int, Optional[Dict[str, Any]]]:
-    """HTTP POST JSON"""
+def http_post(
+    url: str, payload: Dict[str, Any], timeout: float = 30.0,
+    extra_headers: Optional[Dict[str, str]] = None,
+) -> Tuple[int, Optional[Dict[str, Any]]]:
+    """HTTP POST JSON，可选 extra_headers（如 Authorization）。"""
     try:
         data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data, method="POST",
-                                     headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        if extra_headers:
+            headers.update(extra_headers)
+        req = urllib.request.Request(url, data=data, method="POST", headers=headers)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
             return resp.status, json.loads(body)
@@ -260,6 +273,8 @@ def run_checks(http_port: int, grpc_port: int) -> int:
     """执行所有检查"""
     c = Checker()
     base = f"http://localhost:{http_port}"
+    # 提前加载 API key（用于 /tool/invoke 和 /chat 的鉴权）
+    api_key = _load_yaml_api_key()
 
     cprint(Colors.BLUE, "\n[1/6] 检查端口连通性...")
     c.check(f"gRPC 端口 :{grpc_port} 监听", check_port("localhost", grpc_port))
@@ -287,14 +302,23 @@ def run_checks(http_port: int, grpc_port: int) -> int:
     if not target_tool:
         c.skip("调用 file_exists", "工具未注册")
     else:
+        # 若有 config/local.yaml 里的 key，用它通过 gRPC 鉴权
+        extra_headers = None
+        if api_key:
+            extra_headers = {"Authorization": f"Bearer {api_key}"}
         status, body = http_post(f"{base}/tool/invoke", {
             "tool_name": target_tool,
             "arguments": {"path": "C:/Windows/System32/cmd.exe"},  # 项目外，应返回 false 而非抛错
             "session_id": "e2e-verify",
-        })
-        ok = status == 200 and body and body.get("ok") and body.get("data", {}).get("result") is False
+        }, extra_headers=extra_headers)
+        # 两种 OK 情况：1) 真有 auth 头并 result=False；2) 没 auth 头且 gRPC 鉴权关闭，result=False
+        body = body or {}
+        result_value = body.get("data", {}).get("result") if isinstance(body.get("data"), dict) else None
+        ok = status == 200 and (body.get("ok") is True) and result_value is False
         c.check(f"调用 {target_tool} 返回 200 + result=false（安全）", ok,
-                f"status={status}, data={json.dumps(body.get('data') if body else None)[:200]}")
+                f"status={status}, ok={body.get('ok')}, "
+                f"data={json.dumps(body.get('data'))[:200]}, "
+                f"err={str(body.get('error', ''))[:80]}")
 
     cprint(Colors.BLUE, "\n[5/6] /chat/ui 端点（HTML）...")
     status, body = http_get(f"{base}/chat/ui", raw=True)
@@ -305,16 +329,51 @@ def run_checks(http_port: int, grpc_port: int) -> int:
     c.check("/settings/ui 返回 200", status == 200, f"status={status}, size={len(body or '')}")
 
     cprint(Colors.BLUE, "\n[BONUS] /chat 端点（依赖 LLM）...")
-    status, body = http_post(f"{base}/chat", {
-        "message": "回复 OK",
-        "session_id": "e2e-verify",
-    })
-    if status == 200 and body and body.get("ok"):
-        c.check("/chat 正常返回", True, f"content 长度={len(str(body.get('data', {}).get('content', '')))}")
+    # 优先级：环境变量 E2E_LIVE=1 才真打 LLM，否则只验 schema
+    live_mode = os.environ.get("E2E_LIVE", "0") == "1"
+
+    if live_mode and api_key:
+        # 真实 LLM 测试 — 用 Authorization 头注入 key
+        status, body = http_post(
+            f"{base}/chat",
+            {
+                "message": "用 5 个字以内回复 OK",
+                "session_id": "e2e-verify-live",
+            },
+            timeout=60,
+            extra_headers={"Authorization": f"Bearer {api_key}"},
+        )
+        content = str(body.get("data", {}).get("content", "")) if body else ""
+        if status == 200 and body and body.get("ok") and "Authentication failed" not in content:
+            c.check("/chat 真实 LLM 响应", True, f"content={content[:80]}")
+        else:
+            c.check("/chat 真实 LLM 响应", False, f"status={status}, content={content[:120]}")
     else:
-        c.skip("/chat 端到端", f"需要有效 LLM 配置（status={status}）")
+        # Schema 验证（不依赖 LLM）
+        status, body = http_post(f"{base}/chat", {
+            "message": "回复 OK",
+            "session_id": "e2e-verify",
+        })
+        if status == 200 and body and body.get("ok") is not None:
+            c.skip("/chat 真实 LLM", "设 E2E_LIVE=1 + config/local.yaml 启用真实对话测试")
+        else:
+            c.check("/chat schema 响应", False, f"status={status}")
 
     return c.summary()
+
+
+def _load_yaml_api_key() -> Optional[str]:
+    """从 config/local.yaml 读取 API key（不打印 key 本身）。"""
+    import yaml
+    yaml_path = os.path.join(PROJECT_ROOT, "config", "local.yaml")
+    if not os.path.exists(yaml_path):
+        return None
+    try:
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        return cfg.get("llm", {}).get("api_key")
+    except Exception:
+        return None
 
 
 # ════════════════════════════════════════════════════════════════════
