@@ -14,7 +14,7 @@ import { RateLimiterMemory } from "rate-limiter-flexible";
 // @ts-ignore - generated proto file
 import fuxiProto from "../src/proto/fuxi_pb.js";
 import { requestIdMiddleware, getRequestId } from "./middleware/requestId";
-import { catchAsync, wrapResponse } from "./middleware/asyncHandler";
+import { catchAsync, wrapResponse, stripThinkTagsInPlace } from "./middleware/asyncHandler";
 import { degradedHandler } from "./middleware/degradedHandler";
 
 // 扩展 Express Request 类型
@@ -28,6 +28,27 @@ declare global {
 
 const app = express();
 const server = http.createServer(app);
+
+/** 读取 UI 模板（兼容 dev 跑 src 和 prod 跑 dist）
+ *  候选路径：
+ *    1) __dirname/ui/<filename>  (生产：dist/ui/)
+ *    2) __dirname/../src/ui/<filename>  (开发：src/ 跑)
+ *  找不到时返回简单占位符并记录错误。 */
+function readUiTemplate(name: string): string {
+  const candidates = [
+    path.join(__dirname, "ui", name),
+    path.join(__dirname, "..", "src", "ui", name),
+  ];
+  for (const p of candidates) {
+    try {
+      return fs.readFileSync(p, "utf-8");
+    } catch (e) {
+      // 继续尝试下一个
+    }
+  }
+  console.error(`[ERROR] UI template not found: ${name}, tried:`, candidates);
+  return `<!DOCTYPE html><html><body><h1>Template ${name} not found</h1></body></html>`;
+}
 
 // P2-2: WebSocket 服务器（与 HTTP 共用端口，支持双向通信）
 const wss = new ws.Server({ server, path: "/ws/chat" });
@@ -205,9 +226,13 @@ app.post(
     // 模型优先级：请求body > runtimeConfig > config.auth
     const model = bodyModel || runtimeConfig.model || config.auth.model || "";
 
+    // API key 优先级：请求 Authorization header > runtimeConfig > config.auth
+    // 让客户端可按用户/按请求覆盖服务端默认 key
+    const userConfig = extractUserConfig(req);
+    const apiKey = userConfig.apiKey || runtimeConfig.apiKey || config.auth.apiKey;
+    const baseUrl = userConfig.baseUrl || runtimeConfig.baseUrl || config.auth.baseUrl;
+
     const metadata = new grpc.Metadata();
-    const apiKey = runtimeConfig.apiKey || config.auth.apiKey;
-    const baseUrl = runtimeConfig.baseUrl || config.auth.baseUrl;
     if (apiKey) metadata.add('authorization', `Bearer ${apiKey}`);
     if (baseUrl) metadata.add('base-url', baseUrl);
     if (model) metadata.add('model', model);
@@ -230,18 +255,22 @@ app.post(
     call.on("data", (chunk: any) => {
       const content = typeof chunk.getContent === 'function' ? chunk.getContent() : chunk.content;
       const is_final = typeof chunk.getIsFinal === 'function' ? chunk.getIsFinal() : chunk.is_final;
+      // v0.2.7: 累积所有 token 用于流式调试
       fullContent += content || "";
-      // is_final 时标记完成但不 cancel（让流自然走到 end 事件）
+      // v0.2.7: 收到 final chunk 时，用其 content 替换累积（final 已是解析后的最终答案）
       if (is_final && !responded) {
         responded = true;
-        wrapResponse(res, true, { content: fullContent, model: model || '当前模型' });
+        const finalContent = content || fullContent;
+        const cleaned = stripThinkTagsInPlace(finalContent);
+        wrapResponse(res, true, { content: cleaned, model: model || '当前模型' });
       }
     });
 
     call.on("end", () => {
       if (!responded) {
         responded = true;
-        wrapResponse(res, true, { content: fullContent, model: model || '当前模型' });
+        const cleaned = stripThinkTagsInPlace(fullContent);
+        wrapResponse(res, true, { content: cleaned, model: model || '当前模型' });
       }
     });
 
@@ -265,9 +294,12 @@ app.post("/chat/stream", catchAsync(async (req: express.Request, res: express.Re
   // 模型优先级：请求body > runtimeConfig > config.auth
   const model = bodyModel || runtimeConfig.model || config.auth.model || "";
 
+  // API key 优先级：请求 Authorization header > runtimeConfig > config.auth
+  const userConfig = extractUserConfig(req);
+  const apiKey = userConfig.apiKey || runtimeConfig.apiKey || config.auth.apiKey;
+  const baseUrl = userConfig.baseUrl || runtimeConfig.baseUrl || config.auth.baseUrl;
+
   const metadata = new grpc.Metadata();
-  const apiKey = runtimeConfig.apiKey || config.auth.apiKey;
-  const baseUrl = runtimeConfig.baseUrl || config.auth.baseUrl;
   if (apiKey) metadata.add('authorization', `Bearer ${apiKey}`);
   if (baseUrl) metadata.add('base-url', baseUrl);
   if (model) metadata.add('model', model);
@@ -795,7 +827,7 @@ app.post(
 app.get(
   "/settings/ui",
   catchAsync(async (req: express.Request, res: express.Response) => {
-    const html = fs.readFileSync(path.join(__dirname, "ui/settings.html"), "utf-8");
+    const html = readUiTemplate("settings.html");
     res.type("html").send(html);
   })
 );
@@ -804,7 +836,7 @@ app.get(
 app.get(
   "/chat/ui",
   catchAsync(async (req: express.Request, res: express.Response) => {
-    const html = fs.readFileSync(path.join(__dirname, "ui/chat.html"), "utf-8");
+    const html = readUiTemplate("chat.html");
     res.type("html").send(html);
   })
 );
