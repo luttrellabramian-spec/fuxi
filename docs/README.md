@@ -10,6 +10,7 @@
 
 - `伏羲架构设计文档(3).docx`：项目架构设计文档。
 - `architecture_v0.2.5.md`（v0.2.5 → v0.2.6 增量）：新增模块、关键 Bug 修复、测试组织、环境变量。
+- `architecture_v0.2.7.md`（v0.2.6 → v0.2.7 增量）：yaml 自动加载、Authorization 转发、think 标签二次剥离、真实 LLM 端到端验证。
 
 ## reports
 
