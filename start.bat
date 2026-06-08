@@ -121,6 +121,12 @@ echo   按 Ctrl+C 停止服务
 echo ============================================================
 echo.
 
+REM 自动运行端到端验证（v0.2.5 新增）
+echo   [VERIFY] 运行端到端验证（scripts/e2e_verify.py）...
+echo.
+python scripts\e2e_verify.py
+echo.
+
 REM 打开设置页面（如果需要）
 if "!choice!"=="1" (
     start http://localhost:18789/settings/ui

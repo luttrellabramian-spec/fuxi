@@ -21,6 +21,7 @@ from llm.client import LLMClient
 from memory.hot_memory import HotMemory
 from engine.execution_logger import StructuredLogger, make_trace_id
 from engine.tool_tracker import ToolCallTracker
+from engine.response_parser import fix_json, parse_action, parse_final  # noqa: F401
 from evolution.selector import Selector
 
 logger = logging.getLogger("fuxi_engine")
@@ -572,8 +573,8 @@ Final: <直接给出答案>
                 })
 
             # ── 解析: Action优先检查, 但如果同时有Final则优先Final ──
-            action = self._parse_one_action(content)
-            final_match = self._parse_final(content)
+            action = parse_action(content)
+            final_match = parse_final(content)
 
             # 如果同时有 Action 和 Final，优先 Final（LLM 想结束）
             if action and final_match:
@@ -810,14 +811,14 @@ Final: <直接给出答案>
                 messages.append({"role": "assistant", "content": content})
 
                 # 尝试解析最终答案
-                final_match = self._parse_final(content)
+                final_match = parse_final(content)
                 if final_match:
                     final_answer = final_match
                     completed = True
                     break
 
                 # 尝试解析工具调用
-                action = self._parse_one_action(content)
+                action = parse_action(content)
                 if action is None:
                     # 无法解析，添加提示继续
                     messages.append({"role": "user", "content": "请使用 Action: tool_name({...}) 调用工具，或使用 Final: 给出最终答案。"})
@@ -890,91 +891,3 @@ Final: <直接给出答案>
             "success": completed,
             "elapsed": round(time.time() - start_time, 3),
         }
-
-    @staticmethod
-    def _fix_json(raw: str) -> Optional[str]:
-        """尝试修复 LLM 输出的非标准 JSON
-
-        修复策略（按顺序尝试）：
-        1. 直接解析 → 成功则返回
-        2. 单引号→双引号
-        3. ast.literal_eval（处理 True/None/False）
-        4. 移除尾随逗号 + 注释
-        """
-        # 策略1: 直接解析
-        try:
-            json.loads(raw)
-            return raw
-        except json.JSONDecodeError:
-            pass
-
-        # 策略2: 单引号→双引号
-        try:
-            fixed = raw.replace("'", '"')
-            # 同时修复 Python 布尔值/None
-            fixed = fixed.replace("True", "true").replace("False", "false").replace("None", "null")
-            json.loads(fixed)
-            return fixed
-        except json.JSONDecodeError:
-            pass
-
-        # 策略3: ast.literal_eval 处理 Python 语法
-        try:
-            import ast
-            parsed = ast.literal_eval(raw)
-            if isinstance(parsed, dict):
-                return json.dumps(parsed)
-        except (ValueError, SyntaxError):
-            pass
-
-        # 策略4: 移除尾随逗号和注释
-        try:
-            import re as _re
-            # 移除 // 注释
-            cleaned = _re.sub(r'//[^\n]*', '', raw)
-            # 移除尾随逗号在 } 和 ] 前
-            cleaned = _re.sub(r',\s*([}\]])', r'\1', cleaned)
-            # 单引号→双引号
-            cleaned = cleaned.replace("'", '"')
-            cleaned = cleaned.replace("True", "true").replace("False", "false").replace("None", "null")
-            json.loads(cleaned)
-            return cleaned
-        except json.JSONDecodeError:
-            pass
-
-        return None
-
-    def _parse_one_action(self, content: str) -> Optional[Dict[str, Any]]:
-        """解析一个工具调用（增强版：支持连字符工具名、Python语法参数）"""
-        patterns = [
-            rf'Action:\s*{TOOL_NAME_PATTERN}\s*\(\s*(\{{.*\}})\s*\)',
-            rf'行动:\s*{TOOL_NAME_PATTERN}\s*\(\s*(\{{.*\}})\s*\)',
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, content, re.DOTALL)
-            if match:
-                tool_name = match.group(1)
-                args_str = match.group(2)
-                fixed = self._fix_json(args_str)
-                if fixed is not None:
-                    try:
-                        args = json.loads(fixed)
-                        return {"tool": tool_name, "arguments": args}
-                    except json.JSONDecodeError:
-                        continue
-        return None
-
-    def _parse_final(self, content: str) -> Optional[str]:
-        """解析最终答案（支持空内容 Final:）"""
-        patterns = [
-            r'Final:\s*(.*)',
-            r'最终答案:\s*(.*)',
-            r'最终:\s*(.*)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, content, re.DOTALL)
-            if match:
-                result = match.group(1).strip()
-                return result if result else "(空)"
-        return None

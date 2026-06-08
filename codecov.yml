@@ -1,0 +1,58 @@
+codecov:
+  require_ci_to_pass: false
+  notify:
+    after_n_builds: 4
+    wait_for_ci: false
+  status:
+    project:
+      default:
+        target: 60%
+        threshold: 1%
+    patch:
+      default:
+        target: 60%
+        threshold: 1%
+
+# 排除不需要覆盖的文件
+ignore:
+  - "python/src/proto/**"
+  - "python/src/__init__.py"
+  - "typescript/dist/**"
+  - "typescript/coverage/**"
+  - "tests/**"
+  - "scripts/**"
+  - "docs/**"
+  - "**/__pycache__/**"
+  - "**/*.proto"
+  - "**/htmlcov/**"
+  - "**/htmlcov2/**"
+  - "**/htmlcov3/**"
+
+# 按目录分组统计
+flags:
+  unittests:
+    paths:
+      - python/src/
+    carryforward: true
+
+# 单文件状态显示
+coverage:
+  precision: 1
+  round: down
+  range: "50...80"
+  status:
+    project:
+      default:
+        if_ci_failed: error
+    changes:
+      default:
+        if_ci_failed: ignore
+
+# PR 评论模板
+comment:
+  layout: "header, diff, flags, components, files, footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+  hide_project_coverage: false

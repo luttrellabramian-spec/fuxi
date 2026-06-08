@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>伏羲 · 设置</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f0f14; color: #e0e0e8; min-height: 100vh; }
+  .header { background: #1a1a24; border-bottom: 1px solid #2a2a3a; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 20px; font-weight: 600; color: #fff; }
+  .header-right { display: flex; gap: 12px; }
+  .btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; }
+  .btn-primary { background: #6b6bff; color: #fff; }
+  .btn-ghost { background: transparent; color: #888; border: 1px solid #2a2a3a; }
+  .btn-ghost:hover { border-color: #444; color: #b0b0c0; }
+  .container { max-width: 720px; margin: 0 auto; padding: 40px 20px; }
+  h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; color: #fff; }
+  .subtitle { color: #888; font-size: 14px; margin-bottom: 32px; }
+  .card { background: #1a1a24; border: 1px solid #2a2a3a; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .card-title { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 18px; }
+  .field { margin-bottom: 20px; }
+  .field:last-child { margin-bottom: 0; }
+  label { display: block; font-size: 13px; color: #888; margin-bottom: 8px; font-weight: 500; }
+  input[type="text"], input[type="number"], input[type="password"], select {
+    width: 100%; padding: 12px 16px; background: #0f0f18; border: 1px solid #2a2a3a; border-radius: 8px; color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: #6b6bff; }
+  input::placeholder { color: #555; }
+  .hint { font-size: 12px; color: #666; margin-top: 8px; line-height: 1.5; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; transition: all 0.2s; }
+  .btn-primary { background: #6b6bff; color: #fff; }
+  .btn-primary:hover { background: #5a5aee; }
+  .btn-success { background: #22c55e; color: #fff; }
+  .btn-success:hover { background: #16a34a; }
+  .btn-ghost { background: transparent; color: #888; border: 1px solid #2a2a3a; }
+  .btn-ghost:hover { border-color: #444; color: #b0b0c0; }
+  .btn-danger { background: #ef4444; color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
+  .actions { display: flex; gap: 12px; margin-top: 24px; }
+  .status { font-size: 13px; color: #888; margin-top: 16px; text-align: center; padding: 12px; border-radius: 8px; }
+  .status.success { background: #22c55e20; color: #22c55e; }
+  .status.error { background: #ef444420; color: #ef4444; }
+  .env-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #222; font-size: 13px; }
+  .env-row:last-child { border-bottom: none; }
+  .env-key { color: #888; font-weight: 500; }
+  .env-val { color: #6b6bff; font-family: monospace; }
+  .env-val.empty { color: #444; font-style: italic; }
+  .divider { border: none; border-top: 1px solid #2a2a3a; margin: 24px 0; }
+  .preset-btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #2a2a3a; background: transparent; color: #888; margin-right: 8px; margin-bottom: 8px; transition: all 0.2s; }
+  .preset-btn:hover { border-color: #6b6bff; color: #6b6bff; background: #6b6bff10; }
+  .preset-btn.active { border-color: #6b6bff; color: #6b6bff; background: #6b6bff20; }
+  .presets { margin-bottom: 20px; }
+  .presets-label { font-size: 12px; color: #666; margin-bottom: 12px; font-weight: 500; }
+  .provider-section { margin-bottom: 24px; }
+  .provider-title { font-size: 12px; color: #888; margin-bottom: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .badge-required { background: #ef444420; color: #ef4444; }
+  .badge-optional { background: #6b6bff20; color: #6b6bff; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #0f0f18; border-radius: 8px; padding: 4px; }
+  .tab { padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: #888; transition: all 0.2s; }
+  .tab.active { background: #6b6bff; color: #fff; }
+  .tab:hover:not(.active) { color: #fff; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .test-btn { margin-top: 12px; }
+  .test-result { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 13px; display: none; }
+  .test-result.success { background: #22c55e20; color: #22c55e; display: block; }
+  .test-result.error { background: #ef444420; color: #ef4444; display: block; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>⚙️ 伏羲设置</h1>
+  <div class="header-right">
+    <a href="/chat/ui" class="btn btn-primary">💬 进入对话</a>
+  </div>
+</div>
+<div class="container">
+  <h1>伏羲设置</h1>
+  <p class="subtitle">配置 LLM API 和系统参数，所有更改立即生效</p>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="llm" onclick="switchTab('llm', event)">LLM 配置</button>
+    <button class="tab" data-tab="system" onclick="switchTab('system', event)">系统配置</button>
+    <button class="tab" data-tab="env" onclick="switchTab('env', event)">环境变量</button>
+  </div>
+
+  <div id="tab-llm" class="tab-content active">
+    <div class="card">
+      <div class="card-title"><span class="icon">🤖</span> 模型选择</div>
+      <div class="presets">
+        <div class="presets-label">快速预设（点击自动填充）</div>
+        <div class="provider-section">
+          <div class="provider-title">🗣️ 国内领先模型（推荐）</div>
+          <button class="preset-btn" onclick="setPreset('qwen3.6-plus', 'https://dashscope.aliyuncs.com/compatible-mode/v1', event)">通义千问 Qwen3.6-Plus</button>
+          <button class="preset-btn" onclick="setPreset('qwen3-max', 'https://dashscope.aliyuncs.com/compatible-mode/v1', event)">通义千问 Qwen3-Max</button>
+          <button class="preset-btn" onclick="setPreset('glm-5.1', 'https://open.bigmodel.cn/api/paas/v4', event)">智谱 GLM-5.1</button>
+          <button class="preset-btn" onclick="setPreset('glm-4-flash', 'https://open.bigmodel.cn/api/paas/v4', event)">智谱 GLM-4-Flash（快速）</button>
+          <button class="preset-btn" onclick="setPreset('MiniMax-M2.7', 'https://api.minimaxi.com/v1', event)">MiniMax M2.7</button>
+          <button class="preset-btn" onclick="setPreset('moonshot-v1-auto', 'https://api.moonshot.cn/v1', event)">Kimi Moonshot</button>
+          <button class="preset-btn" onclick="setPreset('hunyuan-turbo-latest', 'https://api.hunyuan.cloud.tencent.com/v1', event)">腾讯混元 Turbo</button>
+          <button class="preset-btn" onclick="setPreset('doubao-pro-32k', 'https://ark.cn-beijing.volces.com/api/v3', event)">字节豆包 Pro</button>
+          <button class="preset-btn" onclick="setPreset('ernie-4.5-turbo', 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat', event)">百度文心 4.5 Turbo</button>
+          <button class="preset-btn" onclick="setPreset('yi-lightning', 'https://api.lingyiwanwu.com/v1', event)">零一万物 Yi</button>
+          <button class="preset-btn" onclick="setPreset('baichuan4', 'https://api.baichuan-ai.com/v1', event)">百川 Baichuan4</button>
+        </div>
+        <div class="provider-section">
+          <div class="provider-title">🌐 国际模型</div>
+          <button class="preset-btn" onclick="setPreset('gpt-4o', 'https://api.openai.com/v1', event)">OpenAI GPT-4o</button>
+          <button class="preset-btn" onclick="setPreset('gpt-4o-mini', 'https://api.openai.com/v1', event)">GPT-4o Mini</button>
+          <button class="preset-btn" onclick="setPreset('claude-sonnet-4-20250514', 'https://api.anthropic.com/v1', event)">Claude Sonnet 4</button>
+        </div>
+        <div class="provider-section">
+          <div class="provider-title">💻 本地部署</div>
+          <button class="preset-btn" onclick="setPreset('qwen2.5', 'http://localhost:11434/v1', event)">Ollama 本地</button>
+          <button class="preset-btn" onclick="setPreset('default', 'http://localhost:8000/v1', event)">vLLM 本地</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>模型名称 <span class="badge badge-required">必填</span></label>
+        <input type="text" id="model" placeholder="qwen3.6-plus / glm-5.1 / MiniMax-M2.7">
+        <div class="hint">选择上方预设自动填充，或手动输入模型名称</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🔗</span> API 配置</div>
+      <div class="field">
+        <label>API Base URL <span class="badge badge-required">必填</span></label>
+        <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1">
+        <div class="hint">API 服务地址，必须与模型提供商匹配</div>
+      </div>
+      <div class="field">
+        <label>API Key <span class="badge badge-required">必填</span></label>
+        <input type="password" id="apiKey" placeholder="sk-...">
+        <div class="hint">你的 API 密钥，保存后不会显示完整内容</div>
+      </div>
+      <button class="btn btn-ghost test-btn" onclick="testConnection()">测试连接</button>
+      <div id="testResult" class="test-result"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">⚙️</span> 生成参数</div>
+      <div class="row">
+        <div class="field">
+          <label>Max Tokens</label>
+          <input type="number" id="maxTokens" min="100" max="128000" step="256" value="4096">
+          <div class="hint">单次生成最大 token 数</div>
+        </div>
+        <div class="field">
+          <label>Temperature</label>
+          <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.7">
+          <div class="hint">0=确定性，2=更随机</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-system" class="tab-content">
+    <div class="card">
+      <div class="card-title"><span class="icon">⚡</span> 网关配置</div>
+      <div class="row">
+        <div class="field">
+          <label>HTTP 端口</label>
+          <input type="number" id="httpPort" value="18789" disabled>
+          <div class="hint">需要重启服务才能生效</div>
+        </div>
+        <div class="field">
+          <label>gRPC 端口</label>
+          <input type="number" id="grpcPort" value="50051" disabled>
+          <div class="hint">需要重启服务才能生效</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🛡️</span> 速率限制</div>
+      <div class="row">
+        <div class="field">
+          <label>时间窗口（秒）</label>
+          <input type="number" id="rateWindow" value="900">
+        </div>
+        <div class="field">
+          <label>最大请求数</label>
+          <input type="number" id="rateMax" value="100">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🧠</span> 记忆配置</div>
+      <div class="row-3">
+        <div class="field">
+          <label>热记忆上限</label>
+          <input type="number" id="hotLimit" value="2200">
+          <div class="hint">字符数</div>
+        </div>
+        <div class="field">
+          <label>温记忆上限</label>
+          <input type="number" id="warmLimit" value="50">
+          <div class="hint">消息数</div>
+        </div>
+        <div class="field">
+          <label>ReAct 步数</label>
+          <input type="number" id="maxSteps" value="10">
+          <div class="hint">最大推理步数</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-env" class="tab-content">
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> 环境变量（启动时读取）</div>
+      <div id="envInfo"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">💡</span> 配置说明</div>
+      <div style="font-size: 13px; line-height: 1.8; color: #888;">
+        <p><strong>优先级：</strong>页面设置 > 环境变量 > config/default.yaml</p>
+        <p><strong>环境变量：</strong>在终端中设置，重启后生效</p>
+        <p><strong>配置文件：</strong>编辑 config/local.yaml（会自动加载）</p>
+        <hr class="divider">
+        <p><strong>常用环境变量：</strong></p>
+        <p><code>LLM_API_KEY</code> - API 密钥</p>
+        <p><code>LLM_BASE_URL</code> - API 地址</p>
+        <p><code>DEFAULT_MODEL</code> - 默认模型</p>
+        <p><code>HTTP_PORT</code> - HTTP 端口</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" onclick="saveSettings()">保存配置</button>
+    <button class="btn btn-ghost" onclick="loadSettings()">重新加载</button>
+    <button class="btn btn-danger" onclick="resetSettings()">恢复默认</button>
+  </div>
+  <div id="status" class="status" style="display:none;"></div>
+</div>
+
+<script>
+let current = {};
+
+function switchTab(name, evt) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  var tab = document.querySelector('[data-tab="'+name+'"]');
+  if (tab) tab.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function setPreset(model, baseUrl, evt) {
+  document.getElementById('model').value = model;
+  document.getElementById('baseUrl').value = baseUrl;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (evt && evt.target) evt.target.classList.add('active');
+}
+
+async function loadSettings() {
+  try {
+    const res = await fetch('/settings');
+    const data = await res.json();
+    if (!data.ok) { showStatus('加载失败', 'error'); return; }
+    const cfg = data.data;
+    current = cfg.config;
+    document.getElementById('model').value = cfg.config.model || '';
+    document.getElementById('baseUrl').value = cfg.config.baseUrl || '';
+    document.getElementById('apiKey').value = '';
+    document.getElementById('maxTokens').value = cfg.config.maxTokens || 4096;
+    document.getElementById('temperature').value = cfg.config.temperature || 0.7;
+
+    const env = data.data.envDefaults;
+    const envInfo = document.getElementById('envInfo');
+    if (envInfo) {
+      envInfo.innerHTML = '';
+      Object.entries(env).forEach(([k, v]) => {
+        const row = document.createElement('div');
+        row.className = 'env-row';
+        const keySpan = document.createElement('span');
+        keySpan.className = 'env-key';
+        keySpan.textContent = k;
+        const valSpan = document.createElement('span');
+        valSpan.className = 'env-val' + (v === '未设置' ? ' empty' : '');
+        valSpan.textContent = v as string;
+        row.appendChild(keySpan);
+        row.appendChild(valSpan);
+        envInfo.appendChild(row);
+      });
+    }
+  } catch(e) {
+    showStatus('加载失败: ' + e.message, 'error');
+  }
+}
+
+async function saveSettings() {
+  const payload = {
+    model: document.getElementById('model').value,
+    baseUrl: document.getElementById('baseUrl').value,
+    apiKey: document.getElementById('apiKey').value,
+    maxTokens: parseInt(document.getElementById('maxTokens').value),
+    temperature: parseFloat(document.getElementById('temperature').value),
+  };
+  if (!payload.apiKey) delete payload.apiKey;
+  if (!payload.model) delete payload.model;
+  if (!payload.baseUrl) delete payload.baseUrl;
+
+  if (!payload.model && !current.model) {
+    showStatus('请填写模型名称', 'error');
+    return;
+  }
+  if (!payload.baseUrl && !current.baseUrl) {
+    showStatus('请填写 API Base URL', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showStatus('✓ ' + data.data.message, 'success');
+      loadSettings();
+    } else {
+      showStatus('✗ ' + (data.error || '保存失败'), 'error');
+    }
+  } catch(e) {
+    showStatus('保存失败: ' + e.message, 'error');
+  }
+}
+
+async function resetSettings() {
+  if (!confirm('确定要恢复默认配置吗？')) return;
+  try {
+    await fetch('/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: '', baseUrl: '', apiKey: '', maxTokens: 4096, temperature: 0.7 }),
+    });
+    loadSettings();
+    showStatus('✓ 已恢复默认配置', 'success');
+  } catch(e) {
+    showStatus('恢复失败: ' + e.message, 'error');
+  }
+}
+
+async function testConnection() {
+  const resultEl = document.getElementById('testResult');
+  resultEl.className = 'test-result';
+  resultEl.style.display = 'block';
+  resultEl.textContent = '测试中...';
+  
+  const apiKey = document.getElementById('apiKey').value || current.apiKey;
+  const baseUrl = document.getElementById('baseUrl').value || current.baseUrl;
+  const model = document.getElementById('model').value || current.model;
+
+  if (!apiKey || !baseUrl) {
+    resultEl.className = 'test-result error';
+    resultEl.textContent = '请先填写 API Key 和 Base URL';
+    return;
+  }
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+        'X-Base-Url': baseUrl,
+      },
+      body: JSON.stringify({ message: 'Hi', model: model }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      resultEl.className = 'test-result success';
+      resultEl.textContent = '✓ 连接成功！模型响应正常';
+    } else {
+      resultEl.className = 'test-result error';
+      resultEl.textContent = '✗ 连接失败: ' + (data.error || '未知错误');
+    }
+  } catch(e) {
+    resultEl.className = 'test-result error';
+    resultEl.textContent = '✗ 连接失败: ' + e.message;
+  }
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.style.display = 'block';
+  el.className = 'status ' + type;
+  el.textContent = msg;
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+loadSettings();
+</script>
+</body>
+</html>

@@ -1,9 +1,14 @@
 # 伏羲 (Fuxi)
 
-伏羲是一个面向长期协作的自进化 AI Agent 引擎。它把 TypeScript HTTP/WebSocket 网关、Python Agent 核心、gRPC 协议、分层记忆、工具执行和行为演化模块组织在同一个工程里，用来验证一个更完整的 Agent 系统如何从“能对话”走向“能记忆、能调用工具、能记录执行过程、能逐步优化策略”。
+[![CI](https://github.com/<owner>/fuxi/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/fuxi/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/<owner>/fuxi/branch/main/graph/badge.svg)](https://codecov.io/gh/<owner>/fuxi)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-green)](https://nodejs.org/)
 
-**当前版本**: v0.2.5 WIP  
-**当前状态**: 核心模块已具备较完整测试；TypeScript 网关可编译；完整端到端运行依赖本地 LLM/API 配置。  
+伏羲是一个面向长期协作的自进化 AI Agent 引擎。它把 TypeScript HTTP/WebSocket 网关、Python Agent 核心、gRPC 协议、分层记忆、工具执行和行为演化模块组织在同一个工程里，用来验证一个更完整的 Agent 系统如何从"能对话"走向"能记忆、能调用工具、能记录执行过程、能逐步优化策略"。
+
+**当前版本**: v0.2.5 WIP (即将发布 v0.2.6)
+**当前状态**: 561+ 单元测试，66% 覆盖率；TypeScript 网关可编译；端到端链路通过 `scripts/e2e_verify.py` 验证。
 **项目定位**: 研究型工程原型，不建议直接暴露到公网或生产环境。
 
 ## 核心能力

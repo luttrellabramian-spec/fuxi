@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import pytest
 from engine.fuxi_engine import FuxiEngine, MAX_HISTORY_MESSAGES, MAX_SESSIONS, MAX_BAD_OUTPUTS
+from engine.response_parser import fix_json, parse_action, parse_final
 
 
 # ── helpers ─────────────────────────────────────────────────────────
@@ -81,13 +82,13 @@ class TestFuxiEngineCreation:
 class TestFixJson:
     def test_strategy1_valid_json(self):
         """策略1: 直接解析合法的 JSON"""
-        result = FuxiEngine._fix_json('{"a": 1, "b": "hello"}')
+        result = fix_json('{"a": 1, "b": "hello"}')
         assert result is not None
         json.loads(result)
 
     def test_strategy2_single_quotes(self):
         """策略2: 单引号→双引号"""
-        result = FuxiEngine._fix_json("{'a': 1, 'b': 'hello'}")
+        result = fix_json("{'a': 1, 'b': 'hello'}")
         assert result is not None
         parsed = json.loads(result)
         assert parsed["a"] == 1
@@ -95,7 +96,7 @@ class TestFixJson:
 
     def test_strategy2_python_bool_none(self):
         """策略2: Python 布尔值/None 转换"""
-        result = FuxiEngine._fix_json("{'flag': True, 'data': None, 'bad': False}")
+        result = fix_json("{'flag': True, 'data': None, 'bad': False}")
         assert result is not None
         parsed = json.loads(result)
         assert parsed["flag"] is True
@@ -104,7 +105,7 @@ class TestFixJson:
 
     def test_strategy3_ast_literal_eval(self):
         """策略3: ast.literal_eval 处理 Python 语法"""
-        result = FuxiEngine._fix_json("{'a': 1, 'b': [1, 2, 3]}")
+        result = fix_json("{'a': 1, 'b': [1, 2, 3]}")
         assert result is not None
         parsed = json.loads(result)
         assert parsed["a"] == 1
@@ -116,7 +117,7 @@ class TestFixJson:
             "a": 1,  // this is a comment
             "b": [1, 2, 3,],
         }"""
-        result = FuxiEngine._fix_json(raw)
+        result = fix_json(raw)
         assert result is not None
         parsed = json.loads(result)
         assert parsed["a"] == 1
@@ -124,29 +125,29 @@ class TestFixJson:
 
     def test_strategy4_line_comment(self):
         raw = '{"a": 1 // comment\n}'
-        result = FuxiEngine._fix_json(raw)
+        result = fix_json(raw)
         assert result is not None
         parsed = json.loads(result)
         assert parsed["a"] == 1
 
     def test_all_strategies_fail(self):
         """所有策略均失败时返回 None"""
-        result = FuxiEngine._fix_json("{definitely not json}")
+        result = fix_json("{definitely not json}")
         assert result is None
 
     def test_empty_string(self):
-        result = FuxiEngine._fix_json("")
+        result = fix_json("")
         assert result is None
 
     def test_nested_brackets(self):
         raw = '{"x": {"y": [1, 2]}, "z": {"a": 1}}'
-        result = FuxiEngine._fix_json(raw)
+        result = fix_json(raw)
         assert result is not None
         assert json.loads(result)["x"]["y"] == [1, 2]
 
     def test_unicode_content(self):
         raw = '{"name": "伏羲引擎"}'
-        result = FuxiEngine._fix_json(raw)
+        result = fix_json(raw)
         assert result is not None
         assert json.loads(result)["name"] == "伏羲引擎"
 
@@ -201,31 +202,31 @@ class TestStripThinkTags:
 
 class TestParseFinal:
     def test_english_final(self):
-        result = FuxiEngine._parse_final(FuxiEngine, "Final: The answer is 42")
+        result = parse_final("Final: The answer is 42")
         assert result == "The answer is 42"
 
     def test_chinese_final(self):
-        result = FuxiEngine._parse_final(FuxiEngine, "最终答案: 答案是42")
+        result = parse_final("最终答案: 答案是42")
         assert result == "答案是42"
 
     def test_chinese_final_short(self):
-        result = FuxiEngine._parse_final(FuxiEngine, "最终: 好的")
+        result = parse_final("最终: 好的")
         assert result == "好的"
 
     def test_empty_final(self):
-        result = FuxiEngine._parse_final(FuxiEngine, "Final: ")
+        result = parse_final("Final: ")
         assert result == "(空)"
 
     def test_no_final(self):
-        result = FuxiEngine._parse_final(FuxiEngine, "Action: read_file({'path': 'x.txt'})")
+        result = parse_final("Action: read_file({'path': 'x.txt'})")
         assert result is None
 
     def test_final_with_multiline(self):
-        result = FuxiEngine._parse_final(FuxiEngine, "Final: line1\nline2\nline3")
+        result = parse_final("Final: line1\nline2\nline3")
         assert "line1" in result
 
     def test_final_with_special_chars(self):
-        result = FuxiEngine._parse_final(FuxiEngine, "Final: 你好，世界！price=$100")
+        result = parse_final("Final: 你好，世界！price=$100")
         assert "100" in result
 
 
@@ -235,49 +236,49 @@ class TestParseFinal:
 class TestParseOneAction:
     def test_english_action(self):
         content = 'Action: read_file({"path": "/tmp/test.txt"})'
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is not None
         assert result["tool"] == "read_file"
         assert result["arguments"]["path"] == "/tmp/test.txt"
 
     def test_chinese_action(self):
         content = '行动: write_file({"content": "hello"})'
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is not None
         assert result["tool"] == "write_file"
 
     def test_hyphenated_tool_name(self):
         content = 'Action: memory-query({"key": "test"})'
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is not None
         assert result["tool"] == "memory-query"
 
     def test_tool_name_with_dots(self):
         content = 'Action: tool.say({"msg": "hi"})'
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is not None
         assert result["tool"] == "tool.say"
 
     def test_python_syntax_args(self):
         content = "Action: echo({'message': 'hello'})"
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is not None
         assert result["arguments"]["message"] == "hello"
 
     def test_no_action(self):
         content = "Final: answer"
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is None
 
     def test_invalid_json_args(self):
         """unquoted keys/values cannot be fixed by any strategy"""
         content = 'Action: read_file({path: /tmp})'
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is None
 
     def test_action_with_trailing_text(self):
         content = 'Action: web_search({"q": "test"}) then something'
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is not None
         assert result["tool"] == "web_search"
 
@@ -286,7 +287,7 @@ class TestParseOneAction:
     "path": "test.txt",
     "content": "hello"
 })'''
-        result = FuxiEngine._parse_one_action(FuxiEngine, content)
+        result = parse_action(content)
         assert result is not None
         assert result["tool"] == "write_file"
         assert result["arguments"]["content"] == "hello"

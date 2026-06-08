@@ -1,9 +1,14 @@
 # Fuxi
 
+[![CI](https://github.com/<owner>/fuxi/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/fuxi/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/<owner>/fuxi/branch/main/graph/badge.svg)](https://codecov.io/gh/<owner>/fuxi)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-green)](https://nodejs.org/)
+
 Fuxi is a work-in-progress self-evolving AI Agent engine for long-term collaboration. It combines a TypeScript HTTP/WebSocket gateway, a Python Agent core, gRPC/protobuf communication, layered memory, tool execution, structured logging, and evolution modules.
 
-**Version**: v0.2.5 WIP  
-**Status**: the TypeScript gateway builds, core Python test subsets pass, and full end-to-end usage requires local LLM/API configuration.  
+**Version**: v0.2.5 WIP (v0.2.6 pending)
+**Status**: 561+ unit tests, 66% line coverage; TypeScript gateway builds; full end-to-end verified by `scripts/e2e_verify.py`.  
 **Positioning**: research prototype, not production-ready.
 
 ## Architecture

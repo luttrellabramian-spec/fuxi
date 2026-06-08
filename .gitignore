@@ -82,3 +82,26 @@ python/test_mem.md.lock
 *.tmp
 *.temp
 *.bak
+
+# Test artifacts
+tmp_test_data/
+test_mem.md
+test_mem.md.lock
+tool_tracker.db*
+warm_memory.db*
+cold_memory.db*
+task_state.db*
+fuxi_tool_tracker.db*
+fuxi_warm_memory.db*
+
+# Coverage reports (Python + TypeScript)
+htmlcov/
+htmlcov2/
+htmlcov3/
+coverage/
+.coverage
+*.lcov
+
+# CI/CD
+.github/CODEOWNERS
+

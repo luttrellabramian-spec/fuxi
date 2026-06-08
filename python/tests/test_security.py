@@ -212,12 +212,33 @@ class TestLLMFallbackChain:
         assert name == "all_endpoints_failed"
 
     def test_failure_increments_counter(self):
-        ep = LLMEndpoint("test", "bad_key", "http://invalid:9999", "m", 1)
+        """使用 mock 模拟 LLMClient，避免真实网络调用导致测试挂住。"""
+        from unittest.mock import patch, MagicMock
+        ep = LLMEndpoint("test", "bad_key", "http://localhost:9999", "m", 1)
         chain = LLMFallbackChain([ep])
-        # 调用会因网络错误失败
-        result, name = chain.call_with_fallback([])
-        assert ep.consecutive_failures >= 1 or result is None
-        # 不强制要求失败计数，取决于连接结果
+        # 模拟 LLMClient.complete 返回 success=False（业务失败）
+        with patch("llm.client.LLMClient") as mock_client_cls:
+            mock_instance = MagicMock()
+            mock_instance.complete.return_value = {"success": False, "error": "mocked failure"}
+            mock_client_cls.return_value = mock_instance
+            result, name = chain.call_with_fallback([{"role": "user", "content": "hi"}])
+        # 业务失败应被计入连续失败
+        assert result is None or result.get("success") is False
+        assert name == "all_endpoints_failed" or name == "test"
+        assert ep.consecutive_failures >= 1
+
+    def test_exception_increments_counter(self):
+        """LLMClient 抛异常时也应计入连续失败。"""
+        from unittest.mock import patch, MagicMock
+        ep = LLMEndpoint("test", "bad_key", "http://localhost:9999", "m", 1)
+        chain = LLMFallbackChain([ep])
+        with patch("llm.client.LLMClient") as mock_client_cls:
+            mock_instance = MagicMock()
+            mock_instance.complete.side_effect = RuntimeError("mocked exception")
+            mock_client_cls.return_value = mock_instance
+            result, name = chain.call_with_fallback([{"role": "user", "content": "hi"}])
+        assert result is None
+        assert ep.consecutive_failures >= 1
 
     def test_cooldown_after_max_failures(self):
         ep = LLMEndpoint("test", "k", "http://invalid:9999", "m", 1)
