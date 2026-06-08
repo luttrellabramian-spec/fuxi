@@ -37,6 +37,51 @@ logging.basicConfig(
 )
 logger = logging.getLogger('fuxi_grpc')
 
+
+def _load_local_config() -> None:
+    """从 config/local.yaml 加载 LLM 配置，注入到 os.environ。
+
+    优先级：环境变量 > config/local.yaml
+    这样 CI 可以通过 env 覆盖本地 yaml 值。
+
+    找不到 yaml / 解析失败 时静默回退到 env vars。
+    """
+    try:
+        import yaml  # PyYAML 在 requirements.txt 中
+    except ImportError:
+        return
+
+    candidates = [
+        os.path.join(PROJECT_ROOT, "config", "local.yaml"),
+        os.path.join(os.path.dirname(PROJECT_ROOT), "config", "local.yaml"),
+    ]
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.warning(f"Failed to parse {path}: {e}")
+            continue
+        llm = cfg.get("llm", {})
+        # 仅当 env 未设时才覆盖
+        for env_key, yaml_key in [
+            ("LLM_API_KEY", "api_key"),
+            ("LLM_BASE_URL", "base_url"),
+            ("DEFAULT_MODEL", "model"),
+            ("LLM_MODEL", "model"),
+        ]:
+            if env_key not in os.environ and llm.get(yaml_key):
+                os.environ[env_key] = str(llm[yaml_key])
+        logger.info(f"Loaded LLM config from {path}")
+        return
+    logger.debug("No config/local.yaml found; using environment variables only")
+
+
+# 在读 env vars 之前先加载 local.yaml
+_load_local_config()
+
 # 从环境变量加载配置
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")
