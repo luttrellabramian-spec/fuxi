@@ -5,6 +5,48 @@ All notable changes to Fuxi will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-06-08
+
+### Fixed
+- **gateway.ts 路径硬编码问题**：`_strip_think_tags` 等 use 模板文件硬编码 `__dirname/ui/...`，
+  生产环境（`dist/` 目录）找不到模板。修复：新增 `readUiTemplate()` 支持 fallback 路径。
+- **gateway.ts 不转发 Authorization header**：`/chat` 和 `/chat/stream` 路由硬编码使用
+  `runtimeConfig.apiKey`，从不读客户端请求头。修复：优先级改为
+  `extractUserConfig(req) > runtimeConfig > config.auth`。
+- **think 标签在最终答案中残留**：Python 端 fuxi_engine 已剥离 think，但 gRPC
+  StreamComplete 流式累积会把 think 块拼到最终 content。修复：gateway 端在 is_final
+  时调用 `stripThinkTagsInPlace()` 做二次清理。
+
+### Added
+- **gRPC 自动加载 config/local.yaml**：`grpc_server.py` 启动时读 yaml，注入到
+  `os.environ`。这样 `python main.py` 不再需要手动设环境变量。优先级：env > yaml，
+  方便 CI 覆盖。
+- **strip_think_tags 函数到 response_parser.py**：从 fuxi_engine 抽出，含完整/未闭合
+  think 块 + 孤立标签处理。新增 30 个单测覆盖各种边界。
+- **readUiTemplate() 助手**：兼容 dev（src/ui）和 prod（dist/ui）路径。
+- **stripThinkTagsInPlace() 助手**：网关层兜底剥离 think 块。
+- **E2E_LIVE 真实 LLM 模式**：`e2e_verify.py` 加 `E2E_LIVE=1` 环境变量，启用真实
+  LLM 对话测试（需 config/local.yaml）。
+- **`/tool/invoke` 自动用本地 key 鉴权**：e2e 测试自动读 yaml 注入 Authorization。
+
+### Changed
+- **fuxi_engine.py 内部调用 `strip_think_tags`**：从 `self._strip_think_tags()` 改为
+  `strip_think_tags()` 模块函数（方法仍保留为兼容 shim）。
+- **网关使用 Authorization 优先级链**：客户端 > runtime > config。
+
+### Verified
+- **真实 LLM 端到端**：用 `MiniMax-M2.7` 跑了 4 个场景：
+  1. 自我介绍 → "我是伏羲引擎..." ✅ 8.0s
+  2. 简单数学 "25 × 4" → "100" ✅ 5.9s
+  3. 工具调用 "读 README.md" → 生成正确 `Action: read_file({...})` ✅ 13.2s
+  4. 多轮上下文 "我叫 Alice / 我叫什么？" → "您的名字是 Alice" ✅ 1.1s + 4.1s
+- **e2e_verify.py 10/10 通过**，含真实 LLM 响应 "OK"（干净无 think 块）
+
+### Notes
+- 用户授权使用 `config/local.yaml` 的 API key 做了真实端到端测试
+- `MiniMax-M2.7` 模型本身有小瑕疵（重复输出、think 块多），但链路完全 OK
+- 建议后续支持 token 过期刷新
+
 ## [0.2.6] - 2026-06-08
 
 ### Fixed
