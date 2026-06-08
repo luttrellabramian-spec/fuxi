@@ -21,7 +21,9 @@ from llm.client import LLMClient
 from memory.hot_memory import HotMemory
 from engine.execution_logger import StructuredLogger, make_trace_id
 from engine.tool_tracker import ToolCallTracker
-from engine.response_parser import fix_json, parse_action, parse_final  # noqa: F401
+from engine.response_parser import (
+    fix_json, parse_action, parse_final, strip_think_tags,  # noqa: F401
+)
 from evolution.selector import Selector
 
 logger = logging.getLogger("fuxi_engine")
@@ -551,7 +553,7 @@ Final: <直接给出答案>
             consecutive_empty_output = 0
 
             # 剥离 <think> 标签
-            content = self._strip_think_tags(content)
+            content = strip_think_tags(content)
             messages.append({"role": "assistant", "content": content})
 
             # 日志: LLM 调用成功
@@ -807,7 +809,7 @@ Final: <直接给出答案>
                         yield {"type": "token", "content": token}
 
                 # 流结束，处理完整内容
-                content = self._strip_think_tags(full_content)
+                content = strip_think_tags(full_content)
                 messages.append({"role": "assistant", "content": content})
 
                 # 尝试解析最终答案
