@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """工具调用追踪器（P1-3）
 
 设计目标：
@@ -456,8 +458,9 @@ class ToolCallTracker:
         def _check():
             try:
                 self._check_and_apply_deprioritization(tool_name)
-            except Exception:
-                pass
+            except Exception as e:
+                # v0.2.6 (H4): 后台线程原本静默，记 log 便于排查降权逻辑异常
+                logger.warning(f"async_dep_check failed for {tool_name}: {e}")
 
         threading.Thread(target=_check, daemon=True, name=f"dep-check-{tool_name}").start()
 

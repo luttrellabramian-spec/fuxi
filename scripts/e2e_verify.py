@@ -183,8 +183,10 @@ def start_services(http_port: int, grpc_port: int) -> bool:
     if sys.platform == "win32":
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
 
-    grpc_log = open(os.path.join(PROJECT_ROOT, "logs", "e2e_grpc.log"), "w") \
-        if os.path.isdir(os.path.join(PROJECT_ROOT, "logs")) else subprocess.DEVNULL
+    # 始终把日志落到 logs/ 下，避免启动失败时静默吞掉（v0.2.5 修）
+    log_dir = os.path.join(PROJECT_ROOT, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    grpc_log = open(os.path.join(log_dir, "e2e_grpc.log"), "w")
     try:
         subprocess.Popen(
             [venv_python, "main.py"],
@@ -203,8 +205,7 @@ def start_services(http_port: int, grpc_port: int) -> bool:
 
     # 3) 启动 TypeScript 网关
     cprint(Colors.GRAY, "  [3/3] starting TypeScript gateway...")
-    gateway_log = open(os.path.join(PROJECT_ROOT, "logs", "e2e_gateway.log"), "w") \
-        if os.path.isdir(os.path.join(PROJECT_ROOT, "logs")) else subprocess.DEVNULL
+    gateway_log = open(os.path.join(log_dir, "e2e_gateway.log"), "w")
     try:
         subprocess.Popen(
             ["node", "dist/gateway.js"],

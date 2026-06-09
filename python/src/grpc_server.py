@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 """伏羲 gRPC 服务端（v0.2.0: 集成连接池 + 断路器 + 进化层）"""
 import grpc
+import json
+import re
 import time
 import os
 import sys
@@ -36,6 +40,45 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('fuxi_grpc')
+
+
+# ════════════════════════════════════════════════════════════════════
+# 工具错误脱敏（v0.2.5 加：CRITICAL-4 全量修）
+# ════════════════════════════════════════════════════════════════════
+#
+# 工具返回的 error 字段可能含绝对路径（File not found: C:\...）或 Python
+# 异常消息（[Errno 2] No such file or directory: '/home/...'），
+# 直接回客户端会泄露本地文件系统结构。
+#
+# 处理原则：
+#   1. 工具的 success/error 类型语义保留（用户能区分"找不到"vs"权限拒绝"）
+#   2. 路径片段用 <path> 占位符替换
+#   3. 原始错误写 server log（logger.warning），方便排查
+#   4. 不动 URL、字节数、enum 错误等非路径内容
+#
+_PATH_PATTERNS = [
+    # Windows 绝对路径：盘符前不能是字母（避免 http: 误伤）
+    re.compile(r'(?<![A-Za-z])[A-Za-z]:[\\/](?:[^\\/:*?"<>|\r\n]+[\\/])*[^\\/:*?"<>|\r\n]*'),
+    # Unix 绝对路径：前导空白/引号后跟 / 段（避免误伤 URL）
+    re.compile(r'(?<=[\s"\'\'])((?:/[^/\s"\'<>|]+)+/?)'),
+]
+
+
+def _sanitize_tool_error(error: str) -> str:
+    """把工具 error 字段中的绝对路径替换为 <path>。
+
+    Args:
+        error: 工具原始 error 消息
+
+    Returns:
+        脱敏后的 error（结构语义保留，路径被替换）
+    """
+    if not error:
+        return error
+    sanitized = error
+    for pat in _PATH_PATTERNS:
+        sanitized = pat.sub('<path>', sanitized)
+    return sanitized
 
 
 def _load_local_config() -> None:
@@ -139,7 +182,12 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
         if not AUTH_ENABLED:
             return True  # 认证已关闭
         if not self._default_api_key:
-            return True  # 未配置 key，不验证
+            # fail-closed：开了鉴权但没配 key → 拒绝所有请求，避免未授权访问
+            logger.error(
+                "AUTH_ENABLED=true but no default API key configured; "
+                "refusing all authenticated requests"
+            )
+            return False
         provided_key = metadata.get("api_key", "")
         if not provided_key:
             return False
@@ -174,17 +222,51 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
             result = self.engine.tool_registry.invoke(
                 request.tool_name, request.arguments_json
             )
+
+            # 工具错误脱敏：剥离绝对路径，原始消息写服务端日志
+            # registry 把工具的 dict 返回 JSON 化放进 result_json，
+            # wrapper.success=True（无异常）但工具自身可能 success=False。
+            # 所以要解析 result_json 检查工具自己的 error。
+            tool_error = result.get("error", "")
+            tool_result_json = result.get("result_json", "{}")
+
+            # 1) wrapper 异常路径（registry 自己 except 到的）
+            if not result.get("success") and tool_error:
+                sanitized = _sanitize_tool_error(tool_error)
+                if sanitized != tool_error:
+                    logger.warning(
+                        f"Tool {request.tool_name} wrapper error (sanitized): {tool_error}"
+                    )
+                    tool_error = sanitized
+
+            # 2) 工具自身错误路径（result_json 里）
+            if tool_result_json and tool_result_json != "{}":
+                try:
+                    parsed = json.loads(tool_result_json)
+                    if isinstance(parsed, dict) and parsed.get("success") is False and parsed.get("error"):
+                        original = parsed["error"]
+                        sanitized = _sanitize_tool_error(original)
+                        if sanitized != original:
+                            logger.warning(
+                                f"Tool {request.tool_name} error (sanitized): {original}"
+                            )
+                            parsed["error"] = sanitized
+                            tool_result_json = json.dumps(parsed, ensure_ascii=False)
+                except (json.JSONDecodeError, TypeError):
+                    pass  # 不是 JSON 字典，原样返回
+
             return fuxi_pb2.ToolResult(
                 success=result["success"],
-                result_json=result.get("result_json", "{}"),
-                error=result.get("error", ""),
+                result_json=tool_result_json,
+                error=tool_error,
                 elapsed_ms=result.get("elapsed_ms", 0),
             )
         except Exception as e:
-            logger.error(f"InvokeTool error: {e}")
+            # 服务端记录完整 traceback；只回客户端归一化消息，避免泄露文件路径/SQLite细节
+            logger.error(f"InvokeTool error: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(f"Internal error: {str(e)}")
-            return fuxi_pb2.ToolResult(success=False, error=str(e))
+            context.set_details("Internal error")
+            return fuxi_pb2.ToolResult(success=False, error="Internal error")
 
     def StreamComplete(self, request, context):
         """流式回复 - 使用真正的流式 LLM API
@@ -207,21 +289,17 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
 
             config = self._get_client_config(metadata, request.model)
 
-            # 检查引擎是否需要切换模型配置
+            # v0.2.6: 不再替换 self.engine.llm（共享实例并发不安全）。
+            # 改为按需 new LLMClient 传给 stream_run()。
             current_model = self.engine.llm.model
             target_model = config.get("model") or current_model
 
+            request_llm = self.engine.llm  # 默认用共享实例
             if (target_model != current_model or
                 config.get("api_key") != self.engine.llm.api_key or
                 config.get("base_url") != self.engine.llm.base_url):
-                # 配置不同时，只替换引擎的 LLM 客户端，不重建整个引擎
-                # 先关闭旧客户端的 HTTP 连接
-                if hasattr(self.engine.llm, '_client') and self.engine.llm._client is not None:
-                    try:
-                        self.engine.llm._client.close()
-                    except Exception:
-                        pass
-                self.engine.llm = LLMClient(
+                # 配置不同 → 本次请求用独立 LLMClient（不影响其他并发请求）
+                request_llm = LLMClient(
                     api_key=config["api_key"],
                     base_url=config["base_url"],
                     model=target_model,
@@ -231,6 +309,7 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
             for event in self.engine.stream_run(
                 user_message=request.user_message,
                 session_id=request.session_id or "default",
+                llm=request_llm,
             ):
                 if event["type"] == "token":
                     yield fuxi_pb2.CompletionChunk(
@@ -252,9 +331,10 @@ class FuxiCoreServicer(fuxi_pb2_grpc.FuxiCoreServicer):
                     )
 
         except Exception as e:
-            logger.error(f"StreamComplete error: {e}")
+            # 同 InvokeTool：服务端记 traceback，客户端只收归一化消息
+            logger.error(f"StreamComplete error: {e}", exc_info=True)
             yield fuxi_pb2.CompletionChunk(
-                content=f"Server error: {str(e)}",
+                content="Server error",
                 is_final=True,
                 reasoning="",
             )

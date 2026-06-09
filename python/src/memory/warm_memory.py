@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """温记忆管理 - SQLite FTS5 全文检索（v0.2.0 增强版）
 
 v0.2.0 增强（P1-1）：
@@ -40,6 +42,9 @@ class WarmMemory:
         self.max_entries = max_entries
         self._local = threading.local()
         self._fts_dirty = False  # FTS 脏标记，写入后需要 rebuild
+        # v0.2.6 (H6): rebuild 移到后台线程，避免阻塞 search 热路径
+        self._fts_rebuild_lock = threading.Lock()
+        self._fts_rebuild_running = False
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -84,16 +89,37 @@ class WarmMemory:
             conn.commit()
 
     def _rebuild_fts(self) -> None:
-        """重建 FTS 索引"""
+        """同步重建 FTS 索引（直接调用，不在 search 热路径上用）"""
         conn = self._get_conn()
         conn.execute("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
         conn.commit()
         self._fts_dirty = False
 
+    def _schedule_rebuild_fts(self) -> None:
+        """v0.2.6 (H6): 后台调度 rebuild，不阻塞 search 热路径。
+
+        若已有线程在跑则跳过（合并请求），dirty 标记保留到下次 search 前。
+        """
+        with self._fts_rebuild_lock:
+            if self._fts_rebuild_running:
+                return
+            self._fts_rebuild_running = True
+        # dirty 标记保留 — rebuild 失败可重试
+        def _worker():
+            try:
+                self._rebuild_fts()
+                logger.debug("FTS5 background rebuild complete")
+            except Exception as e:
+                logger.warning(f"FTS5 background rebuild failed: {e}")
+            finally:
+                with self._fts_rebuild_lock:
+                    self._fts_rebuild_running = False
+        threading.Thread(target=_worker, daemon=True, name="warm-fts-rebuild").start()
+
     def _ensure_fts(self) -> None:
-        """确保 FTS 索引是最新的（延迟重建）"""
+        """确保 FTS 索引是最新的（v0.2.6: 后台调度，不阻塞）"""
         if self._fts_dirty:
-            self._rebuild_fts()
+            self._schedule_rebuild_fts()
 
     # ── 写入 ──────────────────────────────────────────────
 

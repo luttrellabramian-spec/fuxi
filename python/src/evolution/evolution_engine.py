@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """进化引擎 - 进化层集成中枢
 
 在 FuxiEngine 的每次运行前后调用：
@@ -58,6 +60,8 @@ class EvolutionEngine:
         self._memory_optimizer = MemoryOptimizer(
             db_path=evolution_db_path or ""
         )
+        # v0.2.6: 计数器替代时间戳取模
+        self._auto_tune_counter = 0
 
         # 最新查询分类缓存（供 after_run 使用）
         self._last_category: Optional[str] = None
@@ -170,12 +174,13 @@ class EvolutionEngine:
             error_type=error_type,
         )
 
-        # 2. 记忆优化器自动调参（每 10 次运行触发一次）
-        if int(time.time()) % 10 == 0:
+        # 2. 记忆优化器自动调参（每 10 次运行触发一次，v0.2.6: 改用计数器）
+        self._auto_tune_counter += 1
+        if self._auto_tune_counter % 10 == 0:
             try:
                 self._memory_optimizer.auto_tune_threshold()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"auto_tune_threshold failed: {e}")
 
     # ── 统计查询 ─────────────────────────────────────
 

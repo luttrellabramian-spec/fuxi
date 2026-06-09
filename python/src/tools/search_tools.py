@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 """搜索工具 - 支持多引擎内容检索"""
 import re
 from typing import Dict, Any
 
 from . import registry
+from ._path_utils import _validate_path  # 共享路径校验（v0.2.5 接入）
 
 
 @registry.register(name="search_web", level="L1")
@@ -111,6 +114,12 @@ def search_file(query: str, directory: str = ".", file_pattern: str = "*.py", ca
     import fnmatch
     import os
 
+    # 路径校验：拒绝 ../ 遍历、跳出项目根目录、进入敏感目录
+    try:
+        directory = _validate_path(directory)
+    except ValueError as e:
+        return {"success": False, "error": str(e), "matches": []}
+
     if not os.path.isdir(directory):
         return {"success": False, "error": f"Directory not found: {directory}", "matches": []}
 
@@ -118,7 +127,7 @@ def search_file(query: str, directory: str = ".", file_pattern: str = "*.py", ca
     query_lower = query.lower() if not case_sensitive else query
 
     try:
-        for root, _, filenames in os.walk(directory):
+        for root, _, filenames in os.walk(directory, followlinks=False):
             for filename in filenames:
                 if not fnmatch.fnmatch(filename, file_pattern):
                     continue
@@ -165,6 +174,12 @@ def search_replace(file_path: str, search: str, replace: str, count: int = -1, b
     """
     import os
     import shutil
+
+    # 写工具更危险：先校验路径再做任何 open
+    try:
+        file_path = _validate_path(file_path)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
 
     if not os.path.isfile(file_path):
         return {"success": False, "error": f"File not found: {file_path}"}
@@ -235,9 +250,15 @@ def grep(pattern: str, path: str = ".", glob: str = "*", ignore_case: bool = Fal
     except re.error as e:
         raise ValueError(f"Invalid regex: {e}")
 
+    # 路径校验
+    try:
+        path = _validate_path(path)
+    except ValueError as e:
+        return {"success": False, "error": str(e), "matches": []}
+
     matches = []
     try:
-        for root, _, filenames in os.walk(path):
+        for root, _, filenames in os.walk(path, followlinks=False):
             for filename in filenames:
                 if not fnmatch.fnmatch(filename, glob):
                     continue

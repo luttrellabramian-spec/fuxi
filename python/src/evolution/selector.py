@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """统一选择器 - 集中管理所有"选择"决策
 
 整合三层选择：
@@ -9,7 +11,7 @@ import logging
 import os
 import time
 import tempfile
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 from evolution.query_classifier import QueryClassifier, QueryCategory
 from evolution.strategy_profiler import StrategyProfiler
@@ -46,6 +48,10 @@ class Selector:
         self._strategy_profiler = StrategyProfiler(db_path=self._db_path)
         self._tool_ranker = ToolRanker(tracker_db_path=tracker_db_path)
         self._memory_optimizer = MemoryOptimizer(db_path=self._db_path)
+        # v0.2.6: 用计数器替代 int(time.time()) % 10（之前是"整 10 秒边界"碰巧触发，非"每 10 次"）
+        self._auto_tune_counter = 0
+        # v0.2.6 (H6): 短期记忆检索缓存，避免每条消息都查 FTS
+        self._mem_cache: Dict[Any, Tuple[float, Dict[str, Any]]] = {}
 
         # v0.3: SmartOptimizer 替代简单平均策略
         self._smart_optimizer = SmartOptimizer()
@@ -205,12 +211,13 @@ class Selector:
                 )
             logger.info(f"Slow Loop 完成: {len(slow_result['recommendations'])} 条建议")
 
-        # 每 10 次触发一次自动阈值调优
-        if int(time.time()) % 10 == 0:
+        # 每 10 次触发一次自动阈值调优（v0.2.6: 改用计数器）
+        self._auto_tune_counter += 1
+        if self._auto_tune_counter % 10 == 0:
             try:
                 self._memory_optimizer.auto_tune_threshold()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"auto_tune_threshold failed: {e}")
 
     # ── 内部：主动记忆检索 ────────────────────────────
 
@@ -220,7 +227,14 @@ class Selector:
         session_id: str,
         config: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """根据进化配置主动执行记忆检索"""
+        """根据进化配置主动执行记忆检索（v0.2.6 加 10s TTL cache）"""
+        # 短期缓存：相同 (query, session_id) 10s 内不重复查库
+        cache_key = (query, session_id)
+        now = time.time()
+        cached = self._mem_cache.get(cache_key)
+        if cached and (now - cached[0]) < 10.0:
+            return cached[1]
+
         result = {"warm": [], "cold": []}
         prefix = f"mem_{session_id}_{int(time.time() * 1000)}"
 
