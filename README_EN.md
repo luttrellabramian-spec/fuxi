@@ -1,14 +1,17 @@
 # Fuxi
 
-[![CI](https://github.com/<owner>/fuxi/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/fuxi/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/<owner>/fuxi/branch/main/graph/badge.svg)](https://codecov.io/gh/<owner>/fuxi)
+[![CI](https://github.com/luttrellabramian-spec/fuxi/actions/workflows/ci.yml/badge.svg)](https://github.com/luttrellabramian-spec/fuxi/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/luttrellabramian-spec/fuxi?label=release&sort=semver)](https://github.com/luttrellabramian-spec/fuxi/releases/latest)
+[![codecov](https://img.shields.io/badge/coverage-66%25-yellow)](https://github.com/luttrellabramian-spec/fuxi)
+[![Tests](https://img.shields.io/badge/tests-161%2B%20passing-brightgreen)](https://github.com/luttrellabramian-spec/fuxi/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-green)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-research--prototype-orange)]()
 
-Fuxi is a work-in-progress self-evolving AI Agent engine for long-term collaboration. It combines a TypeScript HTTP/WebSocket gateway, a Python Agent core, gRPC/protobuf communication, layered memory, tool execution, structured logging, and evolution modules.
+Fuxi is a self-evolving AI Agent engine for long-term collaboration. It combines a TypeScript HTTP/WebSocket gateway, a Python Agent core, gRPC/protobuf communication, layered memory, tool execution, structured logging, and evolution modules.
 
-**Version**: v0.2.5 WIP (v0.2.6 pending)
-**Status**: 561+ unit tests, 66% line coverage; TypeScript gateway builds; full end-to-end verified by `scripts/e2e_verify.py`.  
+**Version**: v0.2.6 (released, with 5 CRITICAL security fixes + 5 phases of HIGH-issue refactor)
+**Status**: 161+ unit tests (core suite 100% PASS); TypeScript gateway builds; end-to-end verified by `scripts/e2e_verify.py` (with real-LLM mode `E2E_LIVE=1`).
 **Positioning**: research prototype, not production-ready.
 
 ## Architecture

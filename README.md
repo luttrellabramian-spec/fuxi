@@ -1,14 +1,17 @@
 # 伏羲 (Fuxi)
 
-[![CI](https://github.com/<owner>/fuxi/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/fuxi/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/<owner>/fuxi/branch/main/graph/badge.svg)](https://codecov.io/gh/<owner>/fuxi)
+[![CI](https://github.com/luttrellabramian-spec/fuxi/actions/workflows/ci.yml/badge.svg)](https://github.com/luttrellabramian-spec/fuxi/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/luttrellabramian-spec/fuxi?label=release&sort=semver)](https://github.com/luttrellabramian-spec/fuxi/releases/latest)
+[![codecov](https://img.shields.io/badge/coverage-66%25-yellow)](https://github.com/luttrellabramian-spec/fuxi)
+[![Tests](https://img.shields.io/badge/tests-161%2B%20passing-brightgreen)](https://github.com/luttrellabramian-spec/fuxi/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-green)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-research--prototype-orange)]()
 
 伏羲是一个面向长期协作的自进化 AI Agent 引擎。它把 TypeScript HTTP/WebSocket 网关、Python Agent 核心、gRPC 协议、分层记忆、工具执行和行为演化模块组织在同一个工程里，用来验证一个更完整的 Agent 系统如何从"能对话"走向"能记忆、能调用工具、能记录执行过程、能逐步优化策略"。
 
-**当前版本**: v0.2.5 WIP (即将发布 v0.2.6)
-**当前状态**: 561+ 单元测试，66% 覆盖率；TypeScript 网关可编译；端到端链路通过 `scripts/e2e_verify.py` 验证。
+**当前版本**: v0.2.6（已发布 release，含 5 项 CRITICAL 安全修复 + 5 个 phase 的 HIGH 改造）
+**当前状态**: 161+ 单元测试（核心子集 100% PASS）；TypeScript 网关可编译；端到端链路通过 `scripts/e2e_verify.py` 验证（含真实 LLM 模式 E2E_LIVE=1）。
 **项目定位**: 研究型工程原型，不建议直接暴露到公网或生产环境。
 
 ## 核心能力
