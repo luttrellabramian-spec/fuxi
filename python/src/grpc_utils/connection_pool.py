@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """gRPC 连接池（v0.2.0: 单例 Channel + Semaphore 并发控制 + CircuitBreaker）
 
 核心设计：

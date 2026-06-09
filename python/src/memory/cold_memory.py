@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """冷记忆管理 - 向量检索（基于 Hugging Face sentence-transformers 或纯 SQLite 回退）"""
 import os
 import sqlite3

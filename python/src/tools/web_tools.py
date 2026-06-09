@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """网络工具 - HTTP 请求、API 调用、内容抓取"""
 import json
 import re

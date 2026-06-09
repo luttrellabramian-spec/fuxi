@@ -4,7 +4,7 @@
   "description": "Fuxi gRPC Gateway - HTTP to gRPC forwarding layer",
   "main": "dist/gateway.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-ui.js",
     "start": "node dist/gateway.js",
     "cli": "node dist/cli.js",
     "dev": "tsc-watch --onSuccess \"node dist/gateway.js\"",

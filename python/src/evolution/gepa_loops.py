@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """GEPA 进化循环 - Fast/Slow/Dreaming 三层进化（设计文档 L6 核心）
 
 Fast Loop (分钟级): SmartOptimizer 已在 selector 中集成

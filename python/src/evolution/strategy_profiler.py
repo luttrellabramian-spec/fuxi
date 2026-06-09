@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """策略概览器 - 追踪不同策略的成功率，自适应优化 ReAct 参数
 
 学习内容：

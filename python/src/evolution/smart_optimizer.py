@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """智能策略优化器 - 替代简单平均，使用 Thompson Sampling + UCB 探索/利用
 
 核心改进:

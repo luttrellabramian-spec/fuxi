@@ -14,7 +14,7 @@ export function catchAsync(
 export function wrapResponse(
   res: express.Response,
   success: boolean,
-  data?: any,
+  data?: unknown,
   error?: string
 ) {
   return res.json({

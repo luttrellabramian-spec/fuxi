@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """MCP 协议模块 - Model Context Protocol 支持
 
 使用方式：

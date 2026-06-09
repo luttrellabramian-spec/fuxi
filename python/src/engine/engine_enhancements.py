@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """引擎增强 - LLM 降级链 + 并行工具决策 + IterationBudget（设计文档 L3）
 
 1. LLM 降级链: 主模型失败时自动切换备用端点

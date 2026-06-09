@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """工具排名器 - 基于历史数据动态优化工具选择推荐
 
 功能：

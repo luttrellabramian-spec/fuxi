@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """进化协调器 - 质量评分 + 冲突仲裁 + 安全门禁 + 回滚（设计文档 L6+L7）
 
 整合 Fast Loop (SmartOptimizer) + Slow Loop (GepaSlowLoop) + Dreaming (DreamingEngine)

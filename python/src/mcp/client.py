@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """MCP 协议客户端 - Model Context Protocol (modelcontextprotocol.io)
 
 实现 MCP Client 规范，通过 stdio 连接 MCP Server，

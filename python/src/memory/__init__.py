@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .hot_memory import HotMemory
 from .warm_memory import WarmMemory
 from .cold_memory import ColdMemory

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """执行日志结构化模块（P0-3）
 
 设计目标：

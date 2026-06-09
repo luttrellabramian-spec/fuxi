@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """伏羲提示词模板 - v0.3.0: 与引擎解析器统一
 
 注意：引擎实际使用 fuxi_engine._get_system_prompt() 动态生成提示词，

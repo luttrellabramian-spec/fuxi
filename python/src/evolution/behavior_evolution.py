@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """行为进化 — 真正改写系统行为，不只是改 prompt
 
 能力:

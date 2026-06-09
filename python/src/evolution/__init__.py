@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """进化层 - 自进化模块包（v0.2.0: 整合 Selector）"""
 from .selector import Selector
 from .query_classifier import QueryClassifier, QueryCategory

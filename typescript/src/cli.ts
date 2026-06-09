@@ -119,10 +119,10 @@ async function main() {
       const reply = resp.data?.data?.content || resp.data?.error || '（无回复）';
       console.log(reply);
       process.exit(0);
-    } catch (err: any) {
-      console.error('Error:', err.message);
-      if (err.response) {
-        console.error('服务端:', err.response.data?.error || err.response.statusText);
+    } catch (err: unknown) {
+      console.error('Error:', (err as { message?: string }).message);
+      if ((err as { response?: any }).response) {
+        console.error('服务端:', (err as any).response.data?.error || (err as any).response.statusText);
       }
       process.exit(1);
     }
@@ -199,7 +199,7 @@ async function main() {
       const payload: any = { message: content, session_id };
       if (runtimeState.model) payload.model = runtimeState.model;
 
-      const headers: any = {};
+      const headers: Record<string, string> = {};
       if (runtimeState.apiKey) headers['Authorization'] = `Bearer ${runtimeState.apiKey}`;
       if (runtimeState.baseUrl) headers['X-Base-Url'] = runtimeState.baseUrl;
 
@@ -216,10 +216,11 @@ async function main() {
       }
 
       console.log('\n伏羲:', reply);
-    } catch (err: any) {
-      console.error('\n错误:', err.message);
-      if (err.response) {
-        console.error('服务端响应:', err.response.data?.error || err.response.statusText);
+    } catch (err: unknown) {
+      const e = err as { message?: string; response?: { data?: { error?: string }; statusText?: string } };
+      console.error('\n错误:', e.message);
+      if (e.response) {
+        console.error('服务端响应:', e.response.data?.error || e.response.statusText);
       }
     }
   }

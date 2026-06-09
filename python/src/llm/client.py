@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """LLM 客户端 - 支持任意 OpenAI 兼容 API（v0.2.0: 超时+重试+CircuitBreaker）"""
 import os
 import time

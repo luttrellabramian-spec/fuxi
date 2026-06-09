@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """工具执行器 - 安全封装 tool invocation
 
 增强 invoke() 层级的安全性：

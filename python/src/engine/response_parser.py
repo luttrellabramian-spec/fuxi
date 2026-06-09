@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """引擎响应解析 — 从 LLM 输出中提取 Action / Final
 
 从 fuxi_engine.py 抽出，便于单独测试和复用。

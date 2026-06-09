@@ -21,8 +21,8 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
 }
 
 /**
- * 从请求中获取 request_id
+ * 从请求中获取 request_id（兼容 Express Request 和 Node IncomingMessage）
  */
-export function getRequestId(req: Request): string {
+export function getRequestId(req: Request | { headers: Record<string, string | string[] | undefined> }): string {
   return (req.headers['x-request-id'] as string) || 'unknown';
 }

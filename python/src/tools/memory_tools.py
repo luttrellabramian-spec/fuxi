@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """记忆工具 - 提供 memory_write / memory_query / memory_get_recent 工具"""
 from typing import Dict, Any
 

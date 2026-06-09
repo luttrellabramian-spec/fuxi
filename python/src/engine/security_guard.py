@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """安全守卫 - § 分隔符 + 工具分级 (L0-L3) + Prompt 注入基础防护
 
 设计文档 L7 安全层实现。

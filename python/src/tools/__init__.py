@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """工具注册与执行模块（v0.2.0 增加调用追踪集成）"""
 import json
 import inspect

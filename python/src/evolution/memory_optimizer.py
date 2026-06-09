@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """记忆优化器 - 基于反馈优化记忆检索策略
 
 功能：

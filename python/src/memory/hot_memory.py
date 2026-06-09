@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """热记忆管理 - LRU 缓存 + 可选 MEMORY.md 持久化
 
 设计目标（P0-1）：
