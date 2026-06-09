@@ -1,6 +1,6 @@
 {
   "name": "fuxi-gateway",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Fuxi gRPC Gateway - HTTP to gRPC forwarding layer",
   "main": "dist/gateway.js",
   "scripts": {

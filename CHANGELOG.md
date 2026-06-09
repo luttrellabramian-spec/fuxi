@@ -5,6 +5,38 @@ All notable changes to Fuxi will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-06-09
+
+### Fixed（CRITICAL 5 项）
+- **gRPC 鉴权 fail-open**：`grpc_server.py:141` 当 `AUTH_ENABLED=true` 但无默认 key 时不再放行所有请求
+- **search_tools 路径遍历**：`grep`/`search_file`/`search_replace` 接入 `_validate_path` 共享校验 + `os.walk(followlinks=False)`
+- **gRPC 错误归一化**：服务端 `str(e)` 写入 `logger.error(..., exc_info=True)`，客户端只收 `"Internal error"`；工具 `result_json` 里的绝对路径用 `_sanitize_tool_error` 替换为 `<path>`
+- **死代码删除**：`engine/task_persistence.py`（0 处 import）+ `tests/test_task_persistence.py` 移除
+- **e2e_verify DEVNULL 静默日志修复**：`os.makedirs(log_dir, exist_ok=True)` + 始终落盘到 `logs/`
+
+### Added
+- `_path_utils.py` 共享路径校验（从 file_tools 抽出）
+- `engine/feedback.py`：on_tool_invoked / on_hot_evict 抽出，4 个关键回调加 `logger.warning`
+- `engine/run_sync.py`：run() 主循环拆出
+- `engine/run_stream.py`：stream_run() 拆出，支持可选 `llm` 参数避免并发竞态
+- `typescript/src/helpers.ts`：buildMetadata、readUiTemplate、logger、metrics
+- `typescript/src/types.ts`：RouteContext + ProtoChunk/Response 接口
+- `typescript/src/routes/{chat,tool,memory,ui}.ts`：按职责拆分
+- `typescript/src/ws/chatSocket.ts`：WebSocket 拆出
+- `typescript/scripts/copy-ui.js`：build 复制 src/ui → dist/ui
+- `docs/planning/伏羲-v0.2.6-HIGH修复路线.md`
+
+### Changed
+- `stream_run(llm=...)` 参数化：每次请求 new LLMClient 不替换共享 `self.engine.llm`（修并发竞态）
+- `time.time() % 10` → 计数器（selector + evolution_engine）
+- `WarmMemory._schedule_rebuild_fts`：后台线程调度，搜索热路径不再阻塞
+- `Selector._retrieve_memories` 加 10s TTL cache
+- `gateway.ts` 1058 → 190 行（-82%）；`fuxi_engine.py` 904 → 412 行（-54%）
+- `buildMetadata(req, runtimeConfig)` 统一 Authorization 优先级链；6 个 memory 路由 + WS 接入
+- `/chat/stream` 每 chunk `stripThinkTagsInPlace` + 跨 chunk 兜底
+- 38 个 Python 文件加 `from __future__ import annotations`
+- 60+ 处 TS callback 形参 `any` → `unknown` + 类型收窄
+
 ## [0.2.7] - 2026-06-08
 
 ### Fixed
